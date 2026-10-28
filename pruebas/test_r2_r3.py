@@ -61,6 +61,8 @@ class TestR2R3(unittest.TestCase):
         d = tempfile.mkdtemp()
         with open(os.path.join(d, "estaciones.csv"), "w", encoding="utf-8") as f:
             f.write("nombre\nCHARLIE\nALFA\nDELTA\nBRAVO\nALFA\n")
+        with open(os.path.join(d, "rutas.csv"), "w", encoding="utf-8") as f:
+            f.write("ruta,orden,estacion\n")
         red = Red(d)
         self.assertEqual(red.rango("A", "Z"), ["ALFA", "BRAVO", "CHARLIE", "DELTA"])
 

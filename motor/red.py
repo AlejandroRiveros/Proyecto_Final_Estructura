@@ -1,6 +1,6 @@
 import csv
 
-from motor.estructuras import TablaHash, merge_sort, esta_ordenado, primer_mayor_o_igual
+from motor.estructuras import ListaDoble, TablaHash, merge_sort, esta_ordenado, primer_mayor_o_igual
 
 # Respuestas de estado(). Si el enunciado pide otro formato, solo se cambian aquí.
 ABIERTA = "abierta"
@@ -11,6 +11,20 @@ class Estacion:
     def __init__(self, nombre):
         self.nombre = nombre
         self.abierta = True
+
+
+class Ruta:
+    """Paradas de una ruta en orden de recorrido (R7).
+
+    paradas: lista doblemente enlazada con los nombres de las estaciones.
+    nodos: tabla hash estación -> su nodo en la lista, para llegar a una
+    parada en O(1) sin recorrer la ruta.
+    """
+
+    def __init__(self, nombre):
+        self.nombre = nombre
+        self.paradas = ListaDoble()
+        self.nodos = TablaHash()
 
 
 class Red:
@@ -25,6 +39,9 @@ class Red:
         # y solo cerrar/reabrir (poco frecuentes) pagan O(n) por mantenerlo.
         self._abiertas = []
         self._cargar_estaciones(carpeta + "/estaciones.csv")
+        # nombre de ruta -> Ruta.
+        self._rutas = TablaHash()
+        self._cargar_rutas(carpeta + "/rutas.csv")
 
     def _cargar_estaciones(self, ruta_archivo):
         nombres = []
@@ -50,6 +67,32 @@ class Red:
         if estacion.abierta:
             return ABIERTA
         return CERRADA
+
+    def _cargar_rutas(self, ruta_archivo):
+        # Las filas de cada ruta se ordenan por la columna orden antes de
+        # enlazarlas: no suponemos que el CSV las traiga en orden.
+        filas_por_ruta = TablaHash()
+        nombres_rutas = []
+        with open(ruta_archivo, encoding="utf-8", newline="") as f:
+            for fila in csv.DictReader(f):
+                ruta = fila["ruta"].strip()
+                filas = filas_por_ruta.obtener(ruta)
+                if filas is None:
+                    filas = []
+                    filas_por_ruta.poner(ruta, filas)
+                    nombres_rutas.append(ruta)
+                # (orden, estación): merge_sort compara primero por orden.
+                filas.append((int(fila["orden"]), fila["estacion"].strip()))
+        for nombre in nombres_rutas:
+            filas = filas_por_ruta.obtener(nombre)
+            if not esta_ordenado(filas):
+                filas = merge_sort(filas)
+            ruta = Ruta(nombre)
+            for par in filas:
+                estacion = par[1]
+                if not ruta.nodos.contiene(estacion):
+                    ruta.nodos.poner(estacion, ruta.paradas.agregar_al_final(estacion))
+            self._rutas.poner(nombre, ruta)
 
     # Mantenimiento del arreglo de abiertas (R8).
     # Sacar o meter un nombre cuesta O(n) por el corrimiento de los demás;
