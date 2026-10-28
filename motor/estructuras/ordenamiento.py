@@ -1,3 +1,11 @@
+def esta_ordenado(arreglo):
+    """True si el arreglo ya está de menor a mayor. O(n): un solo recorrido."""
+    for i in range(1, len(arreglo)):
+        if arreglo[i - 1] > arreglo[i]:
+            return False
+    return True
+
+
 def merge_sort(arreglo):
     """Devuelve una lista nueva ordenada de menor a mayor. O(n log n) siempre.
 

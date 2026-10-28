@@ -8,7 +8,7 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RAIZ)
 
 from motor import Red
-from motor.estructuras import merge_sort, primer_mayor_o_igual
+from motor.estructuras import esta_ordenado, merge_sort, primer_mayor_o_igual
 
 
 class TestEstructuras(unittest.TestCase):
@@ -16,6 +16,11 @@ class TestEstructuras(unittest.TestCase):
         datos = [random.randint(0, 50) for _ in range(500)]
         self.assertEqual(merge_sort(datos), sorted(datos))
         self.assertEqual(merge_sort([]), [])
+
+    def test_esta_ordenado(self):
+        self.assertTrue(esta_ordenado([]))
+        self.assertTrue(esta_ordenado(["A", "B", "B", "C"]))
+        self.assertFalse(esta_ordenado(["A", "C", "B"]))
 
     def test_primer_mayor_o_igual(self):
         a = ["B", "D", "F"]

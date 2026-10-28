@@ -1,6 +1,6 @@
 import csv
 
-from motor.estructuras import TablaHash, merge_sort, primer_mayor_o_igual
+from motor.estructuras import TablaHash, merge_sort, esta_ordenado, primer_mayor_o_igual
 
 # Respuestas de estado(). Si el enunciado pide otro formato, solo se cambian aquí.
 ABIERTA = "abierta"
@@ -35,7 +35,11 @@ class Red:
                     self._estaciones.poner(nombre, Estacion(nombre))
                     nombres.append(nombre)
         # No suponemos que el CSV venga ordenado: la red de prueba puede no estarlo.
-        self._abiertas = merge_sort(nombres)
+        # Verificamos en O(n) y solo pagamos el merge sort O(n log n) si hace falta.
+        if esta_ordenado(nombres):
+            self._abiertas = nombres
+        else:
+            self._abiertas = merge_sort(nombres)
 
     # R1
     def estado(self, nombre):

@@ -33,7 +33,7 @@ Para cada requisito: estructura, algoritmo, alternativa descartada y por qué, y
 
 ### Construcción del arreglo ordenado
 
-Al cargar se ordenan los nombres con un merge sort propio (`motor/estructuras/ordenamiento.py`), O(n log n), sin suponer que el CSV viene ordenado. Cerrar y reabrir (R8) sacan y meten nombres en el arreglo, O(n) por el corrimiento. Se acepta ese costo porque cerrar y reabrir son mucho menos frecuentes que buscar.
+Al cargar no se supone que el CSV venga ordenado, porque la red de prueba es distinta. Primero se verifica el orden con un recorrido, O(n) (`esta_ordenado`), y solo si hay algo fuera de orden se ordena con un merge sort propio, O(n log n) (`motor/estructuras/ordenamiento.py`). Con datos ordenados la carga cuesta O(n). Con datos desordenados sigue siendo correcta. Cerrar y reabrir (R8) sacan y meten nombres en el arreglo, O(n) por el corrimiento. Se acepta ese costo porque cerrar y reabrir son mucho menos frecuentes que buscar.
 
 ### Horas mayores a 24:00
 
