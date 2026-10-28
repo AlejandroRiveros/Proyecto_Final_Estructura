@@ -27,7 +27,7 @@ Para cada requisito: estructura, algoritmo, alternativa descartada y por qué, y
 | R5 | | | | |
 | R6 | | | | |
 | R7 | | | | |
-| R8 | | | | |
+| R8 | Bandera `abierta` en la estación (tabla hash) + sacar o reinsertar el nombre en el arreglo ordenado de abiertas | Búsqueda binaria de la posición y corrimiento del arreglo. Devuelve `True` si cambió algo y `False` si la estación no existe o ya estaba en ese estado | Solo marcar y saltar las cerradas al consultar: cerrar en O(1), pero autocompletar puede caer a O(n) con muchas cerradas. AVL: O(log n) en todo, pero no se vio en clase | `cerrar`/`reabrir`: O(n); n = estaciones abiertas. Pendiente: efecto en ranking (R6) y viajes (R5) |
 | R9 | | | | |
 | R10 | | | | |
 

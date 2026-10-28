@@ -125,10 +125,26 @@ class Red:
 
     # R8
     def cerrar(self, nombre):
-        raise NotImplementedError
+        """True si la estación existía y estaba abierta; False si no había nada que cerrar.
+
+        O(n), n = estaciones abiertas (corrimiento en el arreglo ordenado).
+        """
+        estacion = self._estaciones.obtener(nombre)
+        if estacion is None or not estacion.abierta:
+            return False
+        self._cerrar_estacion(estacion)
+        return True
 
     def reabrir(self, nombre):
-        raise NotImplementedError
+        """True si la estación existía y estaba cerrada; False si no había nada que reabrir.
+
+        O(n), n = estaciones abiertas.
+        """
+        estacion = self._estaciones.obtener(nombre)
+        if estacion is None or estacion.abierta:
+            return False
+        self._abrir_estacion(estacion)
+        return True
 
     # R9
     def deshacer(self):

@@ -40,5 +40,25 @@ class TestR8Estructura(unittest.TestCase):
         self.assertEqual(len(self.red.rango("", "ZZZ")), 146)
 
 
+class TestR8Publico(unittest.TestCase):
+    def setUp(self):
+        self.red = Red(os.path.join(RAIZ, "datos"))
+
+    def test_cerrar_y_reabrir(self):
+        self.assertTrue(self.red.cerrar("CALLE 26"))
+        self.assertEqual(self.red.estado("CALLE 26"), "cerrada")
+        self.assertEqual(self.red.autocompletar("CALLE 26", 5), [])
+        self.assertTrue(self.red.reabrir("CALLE 26"))
+        self.assertEqual(self.red.estado("CALLE 26"), "abierta")
+        self.assertEqual(self.red.autocompletar("CALLE 26", 5), ["CALLE 26"])
+
+    def test_casos_sin_cambio(self):
+        self.assertFalse(self.red.cerrar("NO EXISTE"))
+        self.assertFalse(self.red.reabrir("NO EXISTE"))
+        self.assertFalse(self.red.reabrir("CALLE 26"))
+        self.assertTrue(self.red.cerrar("CALLE 26"))
+        self.assertFalse(self.red.cerrar("CALLE 26"))
+
+
 if __name__ == "__main__":
     unittest.main()
