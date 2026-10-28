@@ -51,6 +51,27 @@ class Red:
             return ABIERTA
         return CERRADA
 
+    # Mantenimiento del arreglo de abiertas (R8).
+    # Sacar o meter un nombre cuesta O(n) por el corrimiento de los demás;
+    # se acepta porque cerrar y reabrir son mucho menos frecuentes que consultar.
+    def _sacar_de_abiertas(self, nombre):
+        i = primer_mayor_o_igual(self._abiertas, nombre)
+        if i < len(self._abiertas) and self._abiertas[i] == nombre:
+            self._abiertas.pop(i)
+
+    def _meter_en_abiertas(self, nombre):
+        i = primer_mayor_o_igual(self._abiertas, nombre)
+        if i == len(self._abiertas) or self._abiertas[i] != nombre:
+            self._abiertas.insert(i, nombre)
+
+    def _cerrar_estacion(self, estacion):
+        estacion.abierta = False
+        self._sacar_de_abiertas(estacion.nombre)
+
+    def _abrir_estacion(self, estacion):
+        estacion.abierta = True
+        self._meter_en_abiertas(estacion.nombre)
+
     # R2
     def autocompletar(self, prefijo, k):
         """Hasta k estaciones abiertas que empiezan por prefijo, en orden alfabético.
