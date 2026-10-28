@@ -1,1 +1,3 @@
 from motor.estructuras.tabla_hash import TablaHash
+from motor.estructuras.ordenamiento import merge_sort
+from motor.estructuras.busqueda import primer_mayor_o_igual
