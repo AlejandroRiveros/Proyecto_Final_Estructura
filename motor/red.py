@@ -1,12 +1,43 @@
+import csv
+
+from motor.estructuras import TablaHash
+
+# Respuestas de estado(). Si el enunciado pide otro formato, solo se cambian aquí.
+ABIERTA = "abierta"
+CERRADA = "cerrada"
+
+
+class Estacion:
+    def __init__(self, nombre):
+        self.nombre = nombre
+        self.abierta = True
+
+
 class Red:
     """Red de TransMilenio cargada desde estaciones.csv, rutas.csv y horarios.csv."""
 
     def __init__(self, carpeta):
         self.carpeta = carpeta
+        # nombre -> Estacion. Tabla hash porque R1 es la consulta más frecuente.
+        self._estaciones = TablaHash()
+        self._cargar_estaciones(carpeta + "/estaciones.csv")
+
+    def _cargar_estaciones(self, ruta_archivo):
+        with open(ruta_archivo, encoding="utf-8", newline="") as f:
+            for fila in csv.DictReader(f):
+                nombre = fila["nombre"].strip()
+                if nombre != "":
+                    self._estaciones.poner(nombre, Estacion(nombre))
 
     # R1
     def estado(self, nombre):
-        raise NotImplementedError
+        """Devuelve "abierta", "cerrada" o None si la estación no existe. O(1) promedio."""
+        estacion = self._estaciones.obtener(nombre)
+        if estacion is None:
+            return None
+        if estacion.abierta:
+            return ABIERTA
+        return CERRADA
 
     # R2
     def autocompletar(self, prefijo, k):

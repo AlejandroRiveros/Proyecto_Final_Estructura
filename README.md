@@ -20,7 +20,7 @@ Para cada requisito: estructura, algoritmo, alternativa descartada y por qué, y
 
 | Req | Estructura | Algoritmo | Alternativa descartada | O grande (n = ...) |
 |---|---|---|---|---|
-| R1 | | | | |
+| R1 | Tabla hash propia con encadenamiento (`motor/estructuras/tabla_hash.py`), nombre → estación | Hash polinomial base 31; se duplica la tabla al pasar factor de carga 0.75 | Arreglo ordenado + búsqueda binaria: O(log n), y R1 es la consulta más frecuente | `estado`: O(1) promedio, O(n) peor caso; n = número de estaciones |
 | R2 | | | | |
 | R3 | | | | |
 | R4 | | | | |
