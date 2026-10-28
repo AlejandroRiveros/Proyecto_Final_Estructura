@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.idea/
+.vscode/
+# GTFS original (zip grande): no se sube
+gtfs/
+*.zip
