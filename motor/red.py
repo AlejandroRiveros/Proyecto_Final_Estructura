@@ -98,14 +98,29 @@ class Red:
     # Sacar o meter un nombre cuesta O(n) por el corrimiento de los demás;
     # se acepta porque cerrar y reabrir son mucho menos frecuentes que consultar.
     def _sacar_de_abiertas(self, nombre):
-        i = primer_mayor_o_igual(self._abiertas, nombre)
-        if i < len(self._abiertas) and self._abiertas[i] == nombre:
-            self._abiertas.pop(i)
+        a = self._abiertas
+        i = primer_mayor_o_igual(a, nombre)
+        if i == len(a) or a[i] != nombre:
+            return
+        # Corre una casilla a la izquierda todo lo que está después de i
+        # y descarta la última, que quedó repetida.
+        for j in range(i, len(a) - 1):
+            a[j] = a[j + 1]
+        a.pop()
 
     def _meter_en_abiertas(self, nombre):
-        i = primer_mayor_o_igual(self._abiertas, nombre)
-        if i == len(self._abiertas) or self._abiertas[i] != nombre:
-            self._abiertas.insert(i, nombre)
+        a = self._abiertas
+        i = primer_mayor_o_igual(a, nombre)
+        if i < len(a) and a[i] == nombre:
+            return
+        # Abre un hueco en i: agrega una casilla al final y corre una
+        # casilla a la derecha todo lo que está desde i.
+        a.append(nombre)
+        j = len(a) - 1
+        while j > i:
+            a[j] = a[j - 1]
+            j -= 1
+        a[i] = nombre
 
     def _cerrar_estacion(self, estacion):
         estacion.abierta = False
