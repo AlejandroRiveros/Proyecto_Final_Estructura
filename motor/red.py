@@ -173,13 +173,44 @@ class Red:
 
     # R7
     def agregar_parada(self, ruta, nueva, despues_de):
-        raise NotImplementedError
+        """Mete nueva justo después de despues_de en la ruta. O(1) promedio.
+
+        True si la ruta cambió. False si la ruta no existe, despues_de no está
+        en ella, nueva ya está en ella o nueva no es una estación de la red.
+        """
+        r = self._rutas.obtener(ruta)
+        if r is None or not self._estaciones.contiene(nueva):
+            return False
+        nodo = r.nodos.obtener(despues_de)
+        if nodo is None or r.nodos.contiene(nueva):
+            return False
+        r.nodos.poner(nueva, r.paradas.insertar_despues(nodo, nueva))
+        return True
 
     def quitar_parada(self, ruta, estacion):
-        raise NotImplementedError
+        """Saca estacion de la ruta. O(1) promedio.
+
+        True si la ruta cambió. False si la ruta no existe o la estación no está en ella.
+        """
+        r = self._rutas.obtener(ruta)
+        if r is None:
+            return False
+        nodo = r.nodos.obtener(estacion)
+        if nodo is None:
+            return False
+        r.paradas.quitar(nodo)
+        r.nodos.eliminar(estacion)
+        return True
 
     def recorrido(self, ruta, al_reves=False):
-        raise NotImplementedError
+        """Paradas de la ruta en orden de ida, o de vuelta si al_reves. [] si la ruta no existe.
+
+        O(L), L = paradas de la ruta.
+        """
+        r = self._rutas.obtener(ruta)
+        if r is None:
+            return []
+        return r.paradas.a_lista(al_reves)
 
     # R8
     def cerrar(self, nombre):
