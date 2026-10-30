@@ -1,6 +1,6 @@
 import csv
 
-from motor.estructuras import ListaDoble, TablaHash, merge_sort, esta_ordenado, primer_mayor_o_igual
+from motor.estructuras import ListaDoble, Pila, TablaHash, merge_sort, esta_ordenado, primer_mayor_o_igual
 
 # Respuestas de estado(). Si el enunciado pide otro formato, solo se cambian aquí.
 ABIERTA = "abierta"
@@ -72,6 +72,10 @@ class Red:
         # nombre de ruta -> Ruta.
         self._rutas = TablaHash()
         self._cargar_rutas(carpeta + "/rutas.csv")
+        # R9: historial de cambios en dos pilas (sesión 6). Cada entrada es
+        # una tupla que describe el cambio, para poder aplicar su contrario.
+        self._deshacer = Pila()
+        self._rehacer = Pila()
 
     def _cargar_estaciones(self, ruta_archivo):
         nombres = []
@@ -209,10 +213,10 @@ class Red:
         r = self._rutas.obtener(ruta)
         if r is None or not self._estaciones.contiene(nueva):
             return False
-        nodo = r.nodos.obtener(despues_de)
-        if nodo is None or r.nodos.contiene(nueva):
+        if not r.nodos.contiene(despues_de) or r.nodos.contiene(nueva):
             return False
-        r.nodos.poner(nueva, r.paradas.insertar_despues(nodo, nueva))
+        self._registrar(("agregar", ruta, nueva, despues_de))
+        self._insertar_parada(r, nueva, despues_de)
         return True
 
     def quitar_parada(self, ruta, estacion):
@@ -226,9 +230,26 @@ class Red:
         nodo = r.nodos.obtener(estacion)
         if nodo is None:
             return False
-        r.paradas.quitar(nodo)
-        r.nodos.eliminar(estacion)
+        # Se guarda la parada anterior para poder deshacer: volver a meterla
+        # después de ella, o al inicio si era la primera (anterior = None).
+        anterior = None
+        if nodo.anterior is not None:
+            anterior = nodo.anterior.valor
+        self._registrar(("quitar", ruta, estacion, anterior))
+        self._sacar_parada(r, estacion)
         return True
+
+    def _insertar_parada(self, r, nueva, despues_de):
+        # despues_de = None significa al inicio de la ruta.
+        if despues_de is None:
+            nodo = r.paradas.agregar_al_inicio(nueva)
+        else:
+            nodo = r.paradas.insertar_despues(r.nodos.obtener(despues_de), nueva)
+        r.nodos.poner(nueva, nodo)
+
+    def _sacar_parada(self, r, estacion):
+        r.paradas.quitar(r.nodos.obtener(estacion))
+        r.nodos.eliminar(estacion)
 
     def recorrido(self, ruta, al_reves=False):
         """Paradas de la ruta en orden de ida, o de vuelta si al_reves. [] si la ruta no existe.
@@ -249,6 +270,7 @@ class Red:
         estacion = self._estaciones.obtener(nombre)
         if estacion is None or not estacion.abierta:
             return False
+        self._registrar(("cerrar", nombre))
         self._cerrar_estacion(estacion)
         return True
 
@@ -260,12 +282,60 @@ class Red:
         estacion = self._estaciones.obtener(nombre)
         if estacion is None or estacion.abierta:
             return False
+        self._registrar(("reabrir", nombre))
         self._abrir_estacion(estacion)
         return True
 
     # R9
+    def _registrar(self, cambio):
+        # Un cambio nuevo entra a deshacer y borra lo que había para rehacer.
+        self._deshacer.apilar(cambio)
+        self._rehacer.vaciar()
+
+    def _aplicar(self, cambio, al_reves):
+        """Aplica un cambio guardado (al_reves=False) o su contrario (al_reves=True).
+
+        No pasa por los métodos públicos para no volver a registrar el cambio.
+        """
+        tipo = cambio[0]
+        # El contrario de cada cambio: cerrar <-> reabrir, agregar <-> quitar.
+        if al_reves:
+            if tipo == "cerrar":
+                tipo = "reabrir"
+            elif tipo == "reabrir":
+                tipo = "cerrar"
+            elif tipo == "agregar":
+                tipo = "quitar"
+            else:
+                tipo = "agregar"
+        if tipo == "cerrar":
+            self._cerrar_estacion(self._estaciones.obtener(cambio[1]))
+        elif tipo == "reabrir":
+            self._abrir_estacion(self._estaciones.obtener(cambio[1]))
+        elif tipo == "agregar":
+            # cambio[3] es la parada después de la cual va (None = al inicio).
+            self._insertar_parada(self._rutas.obtener(cambio[1]), cambio[2], cambio[3])
+        else:
+            self._sacar_parada(self._rutas.obtener(cambio[1]), cambio[2])
+
     def deshacer(self):
-        raise NotImplementedError
+        """Deshace el último cambio. True si había algo que deshacer.
+
+        O(1) para sacar de la pila + el costo del cambio contrario
+        (O(1) en rutas, O(n) en cerrar/reabrir).
+        """
+        cambio = self._deshacer.desapilar()
+        if cambio is None:
+            return False
+        self._aplicar(cambio, al_reves=True)
+        self._rehacer.apilar(cambio)
+        return True
 
     def rehacer(self):
-        raise NotImplementedError
+        """Vuelve a aplicar el último cambio deshecho. True si había algo que rehacer."""
+        cambio = self._rehacer.desapilar()
+        if cambio is None:
+            return False
+        self._aplicar(cambio, al_reves=False)
+        self._deshacer.apilar(cambio)
+        return True

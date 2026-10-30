@@ -30,6 +30,18 @@ class ListaDoble:
         self._tamano += 1
         return nodo
 
+    def agregar_al_inicio(self, valor):
+        nodo = NodoDoble(valor)
+        if self.cabeza is None:
+            self.cabeza = nodo
+            self.cola = nodo
+        else:
+            nodo.siguiente = self.cabeza
+            self.cabeza.anterior = nodo
+            self.cabeza = nodo
+        self._tamano += 1
+        return nodo
+
     def insertar_despues(self, nodo, valor):
         nuevo = NodoDoble(valor)
         nuevo.anterior = nodo
