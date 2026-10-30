@@ -41,6 +41,18 @@ class Estacion:
     def __init__(self, nombre):
         self.nombre = nombre
         self.abierta = True
+        # R6: buses al día que paran aquí (suma de las rutas que la tienen
+        # como parada) y su posición en el arreglo del ranking (-1 si está
+        # cerrada y por eso fuera del ranking).
+        self.buses = 0
+        self.pos_ranking = -1
+
+
+def _va_antes(a, b):
+    """Orden del ranking: más buses primero; a igual número, orden alfabético."""
+    if a.buses != b.buses:
+        return a.buses > b.buses
+    return a.nombre < b.nombre
 
 
 class Ruta:
@@ -74,7 +86,13 @@ class Red:
         self._cargar_rutas(carpeta + "/rutas.csv")
         # R4: ruta -> (estación -> arreglo ordenado y sin repetidos de horas "HH:MM").
         self._horarios = TablaHash()
+        # R6: ruta -> (estación -> número de filas de horarios.csv, con repetidas).
+        self._conteos = TablaHash()
         self._cargar_horarios(carpeta + "/horarios.csv")
+        # R6: estaciones abiertas ordenadas con _va_antes. Cada estación guarda
+        # su posición, así que se encuentra en O(1) sin recorrer el arreglo.
+        self._ranking = []
+        self._construir_ranking()
         # R9: historial de cambios en dos pilas (sesión 6). Cada entrada es
         # una tupla que describe el cambio, para poder aplicar su contrario.
         self._deshacer = Pila()
@@ -143,6 +161,11 @@ class Red:
                 por_estacion.poner(fila[1], horas)
                 pares.append((por_estacion, fila[1]))
             horas.append(fila[2])
+            conteo_ruta = self._conteos.obtener(fila[0])
+            if conteo_ruta is None:
+                conteo_ruta = TablaHash()
+                self._conteos.poner(fila[0], conteo_ruta)
+            conteo_ruta.poner(fila[1], conteo_ruta.obtener(fila[1], 0) + 1)
         # 2) Ordenar cada arreglo (solo si hace falta) y quitar repetidas.
         # "HH:MM" con dos dígitos se compara bien como texto: "07:05" < "13:40".
         for par in pares:
@@ -155,6 +178,85 @@ class Red:
                 if len(sin_repetidas) == 0 or sin_repetidas[len(sin_repetidas) - 1] != hora:
                     sin_repetidas.append(hora)
             por_estacion.poner(par[1], sin_repetidas)
+
+    def _buses_de(self, ruta, estacion):
+        """Buses al día que aporta esta ruta a esta estación (0 si no hay horarios)."""
+        conteo_ruta = self._conteos.obtener(ruta)
+        if conteo_ruta is None:
+            return 0
+        return conteo_ruta.obtener(estacion, 0)
+
+    def _construir_ranking(self):
+        # Una sola vez al cargar: sumar los buses de cada parada de cada ruta
+        # y ordenar las abiertas con merge sort, O(n log n).
+        for nombre_ruta in self._rutas.claves():
+            r = self._rutas.obtener(nombre_ruta)
+            for estacion in r.paradas.a_lista():
+                self._estaciones.obtener(estacion).buses += self._buses_de(nombre_ruta, estacion)
+        # (-buses, nombre) ordena de mayor a menor y desempata alfabéticamente.
+        claves = []
+        for nombre in self._abiertas:
+            claves.append((-self._estaciones.obtener(nombre).buses, nombre))
+        claves = merge_sort(claves)
+        self._ranking = []
+        for clave in claves:
+            estacion = self._estaciones.obtener(clave[1])
+            estacion.pos_ranking = len(self._ranking)
+            self._ranking.append(estacion)
+
+    def _intercambiar_en_ranking(self, i, j):
+        a = self._ranking
+        a[i], a[j] = a[j], a[i]
+        a[i].pos_ranking = i
+        a[j].pos_ranking = j
+
+    def _reubicar_en_ranking(self, estacion):
+        """Mueve la estación a su lugar tras cambiar sus buses. O(d + 1), d = posiciones que salta."""
+        i = estacion.pos_ranking
+        while i > 0 and _va_antes(estacion, self._ranking[i - 1]):
+            self._intercambiar_en_ranking(i, i - 1)
+            i -= 1
+        while i < len(self._ranking) - 1 and _va_antes(self._ranking[i + 1], estacion):
+            self._intercambiar_en_ranking(i, i + 1)
+            i += 1
+
+    def _sacar_de_ranking(self, estacion):
+        # O(n): se corre a la izquierda todo lo que está después y se
+        # actualiza la posición guardada de cada estación corrida.
+        a = self._ranking
+        for j in range(estacion.pos_ranking, len(a) - 1):
+            a[j] = a[j + 1]
+            a[j].pos_ranking = j
+        a.pop()
+        estacion.pos_ranking = -1
+
+    def _meter_en_ranking(self, estacion):
+        # Búsqueda binaria de su lugar, O(log n), y corrimiento a la derecha, O(n).
+        a = self._ranking
+        bajo = 0
+        alto = len(a)
+        while bajo < alto:
+            medio = (bajo + alto) // 2
+            if _va_antes(a[medio], estacion):
+                bajo = medio + 1
+            else:
+                alto = medio
+        a.append(estacion)
+        j = len(a) - 1
+        while j > bajo:
+            a[j] = a[j - 1]
+            a[j].pos_ranking = j
+            j -= 1
+        a[bajo] = estacion
+        estacion.pos_ranking = bajo
+
+    def _cambiar_buses(self, nombre, delta):
+        if delta == 0:
+            return
+        estacion = self._estaciones.obtener(nombre)
+        estacion.buses += delta
+        if estacion.pos_ranking != -1:
+            self._reubicar_en_ranking(estacion)
 
     # Mantenimiento del arreglo de abiertas (R8).
     # Sacar o meter un nombre cuesta O(n) por el corrimiento de los demás;
@@ -187,10 +289,12 @@ class Red:
     def _cerrar_estacion(self, estacion):
         estacion.abierta = False
         self._sacar_de_abiertas(estacion.nombre)
+        self._sacar_de_ranking(estacion)
 
     def _abrir_estacion(self, estacion):
         estacion.abierta = True
         self._meter_en_abiertas(estacion.nombre)
+        self._meter_en_ranking(estacion)
 
     # R2
     def autocompletar(self, prefijo, k):
@@ -254,7 +358,16 @@ class Red:
 
     # R6
     def ranking(self, k):
-        raise NotImplementedError
+        """Las k estaciones abiertas con más buses al día, de mayor a menor. O(k).
+
+        Empates: orden alfabético. Las cerradas no están en el arreglo.
+        """
+        salida = []
+        i = 0
+        while i < k and i < len(self._ranking):
+            salida.append(self._ranking[i].nombre)
+            i += 1
+        return salida
 
     # R7
     def agregar_parada(self, ruta, nueva, despues_de):
@@ -299,10 +412,13 @@ class Red:
         else:
             nodo = r.paradas.insertar_despues(r.nodos.obtener(despues_de), nueva)
         r.nodos.poner(nueva, nodo)
+        # R6: la parada suma los buses que esta ruta tiene ahí (0 si no hay horarios).
+        self._cambiar_buses(nueva, self._buses_de(r.nombre, nueva))
 
     def _sacar_parada(self, r, estacion):
         r.paradas.quitar(r.nodos.obtener(estacion))
         r.nodos.eliminar(estacion)
+        self._cambiar_buses(estacion, -self._buses_de(r.nombre, estacion))
 
     def recorrido(self, ruta, al_reves=False):
         """Paradas de la ruta en orden de ida, o de vuelta si al_reves. [] si la ruta no existe.
