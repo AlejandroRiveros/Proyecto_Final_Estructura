@@ -49,5 +49,29 @@ class TestR4(unittest.TestCase):
         self.assertEqual(guardadas, self.horas)
 
 
+class TestR4ConCambios(unittest.TestCase):
+    def setUp(self):
+        self.red = Red(os.path.join(RAIZ, "datos"))
+        self.hora = self.red.proximo_bus("UNIVERSIDADES", "1-1", "07:00")
+
+    def test_estacion_cerrada(self):
+        self.assertIsNotNone(self.hora)
+        self.red.cerrar("UNIVERSIDADES")
+        self.assertIsNone(self.red.proximo_bus("UNIVERSIDADES", "1-1", "07:00"))
+        self.red.reabrir("UNIVERSIDADES")
+        self.assertEqual(self.red.proximo_bus("UNIVERSIDADES", "1-1", "07:00"), self.hora)
+
+    def test_parada_quitada_y_deshacer(self):
+        self.red.quitar_parada("1-1", "UNIVERSIDADES")
+        self.assertIsNone(self.red.proximo_bus("UNIVERSIDADES", "1-1", "07:00"))
+        self.red.deshacer()
+        self.assertEqual(self.red.proximo_bus("UNIVERSIDADES", "1-1", "07:00"), self.hora)
+
+    def test_cierre_deshecho(self):
+        self.red.cerrar("UNIVERSIDADES")
+        self.red.deshacer()
+        self.assertEqual(self.red.proximo_bus("UNIVERSIDADES", "1-1", "07:00"), self.hora)
+
+
 if __name__ == "__main__":
     unittest.main()

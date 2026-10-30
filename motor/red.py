@@ -225,9 +225,18 @@ class Red:
     def proximo_bus(self, estacion, ruta, hora):
         """Hora ("HH:MM") del primer bus de la ruta en la estación a la hora dada o después.
 
-        None si no hay horarios para ese par o no pasan más buses ese día.
-        O(log h), h = horas de esa ruta en esa estación.
+        None si la estación está cerrada (R8), la parada ya no está en la ruta (R7),
+        no hay horarios para ese par o no pasan más buses ese día.
+        O(log h), h = horas de esa ruta en esa estación: las dos revisiones son O(1).
+        Los horarios no se borran al cerrar ni al quitar la parada, así que al
+        reabrir o deshacer vuelven a valer sin hacer nada más.
         """
+        est = self._estaciones.obtener(estacion)
+        if est is None or not est.abierta:
+            return None
+        r = self._rutas.obtener(ruta)
+        if r is None or not r.nodos.contiene(estacion):
+            return None
         por_estacion = self._horarios.obtener(ruta)
         if por_estacion is None:
             return None
