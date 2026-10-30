@@ -23,7 +23,7 @@ Para cada requisito: estructura, algoritmo, alternativa descartada y por qué, y
 | R1 | Tabla hash propia con encadenamiento (`motor/estructuras/tabla_hash.py`), nombre → estación | Hash polinomial base 31; se duplica la tabla al pasar factor de carga 0.75 | Arreglo ordenado + búsqueda binaria: O(log n), y R1 es la consulta más frecuente | `estado`: O(1) promedio, O(n) peor caso; n = número de estaciones |
 | R2 | Arreglo ordenado con los nombres de las estaciones abiertas (`_abiertas`) | Búsqueda binaria del primer nombre ≥ prefijo; desde ahí se avanza mientras empiece por el prefijo y falten resultados | BST: los nombres llegan ordenados en el CSV y el árbol se degenera en lista (h = n). Tabla hash: no guarda orden | `autocompletar`: O(log n + k); n = estaciones abiertas, k = máximo pedido |
 | R3 | El mismo arreglo ordenado de R2 | Búsqueda binaria de `desde` y recorrido hasta pasar `hasta` (ambos incluidos) | Recorrer todas las estaciones filtrando: O(n) por consulta | `rango`: O(log n + m); n = estaciones abiertas, m = estaciones devueltas |
-| R4 | | | | |
+| R4 | Tabla hash ruta → (tabla hash estación → arreglo ordenado y sin repetidos de horas "HH:MM") | Al cargar: verificar orden en O(h), merge sort solo si hace falta, y quitar repetidas en un recorrido. Al consultar: búsqueda binaria de la primera hora ≥ la pedida | Recorrer la lista sin ordenar en cada consulta: O(h), y la pista dice que las troncales pasan cientos de veces al día. Arreglo de 1.440 minutos por par: O(1), pero mucha memoria | `proximo_bus`: O(log h); h = horas de esa ruta en esa estación. Carga: O(H log h), H = total de horas |
 | R5 | | | | |
 | R6 | | | | |
 | R7 | Por ruta: lista doblemente enlazada con las paradas + tabla hash estación → nodo (`motor/estructuras/lista_doble.py`) | La tabla hash da el nodo en O(1); agregar y quitar solo reconectan punteros anterior/siguiente. El recorrido de ida sale de la cabeza y el de vuelta de la cola. Devuelven `True`/`False` como R8 (`False` también si `nueva` no es una estación de la red); `recorrido` da `[]` si la ruta no existe | Arreglo por ruta: buscar y correr elementos, O(L). Lista simple: quitar necesita el nodo anterior, O(L), y la vuelta hay que voltearla | `agregar_parada`/`quitar_parada`: O(1) promedio; `recorrido`: O(L); L = paradas de la ruta |
@@ -35,6 +35,6 @@ Para cada requisito: estructura, algoritmo, alternativa descartada y por qué, y
 
 Al cargar no se supone que el CSV venga ordenado, porque la red de prueba es distinta. Primero se verifica el orden con un recorrido, O(n) (`esta_ordenado`), y solo si hay algo fuera de orden se ordena con un merge sort propio, O(n log n) (`motor/estructuras/ordenamiento.py`). Con datos ordenados la carga cuesta O(n). Con datos desordenados sigue siendo correcta. Cerrar y reabrir (R8) sacan y meten nombres en el arreglo, O(n) por el corrimiento. Se acepta ese costo porque cerrar y reabrir son mucho menos frecuentes que buscar.
 
-### Horas mayores a 24:00
+### Horas
 
-_Pendiente: decisión sobre horas del GTFS como 25:10._
+Los CSV del profesor traen horas entre 00:01 y 23:59 en formato HH:MM con dos dígitos, así que se comparan bien como texto ("07:05" < "13:40") sin convertirlas. El profesor entregó los CSV ya convertidos, por eso no hubo que decidir qué hacer con horas del GTFS como 25:10.

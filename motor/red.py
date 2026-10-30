@@ -72,6 +72,9 @@ class Red:
         # nombre de ruta -> Ruta.
         self._rutas = TablaHash()
         self._cargar_rutas(carpeta + "/rutas.csv")
+        # R4: ruta -> (estación -> arreglo ordenado y sin repetidos de horas "HH:MM").
+        self._horarios = TablaHash()
+        self._cargar_horarios(carpeta + "/horarios.csv")
         # R9: historial de cambios en dos pilas (sesión 6). Cada entrada es
         # una tupla que describe el cambio, para poder aplicar su contrario.
         self._deshacer = Pila()
@@ -125,6 +128,33 @@ class Red:
                 if not ruta.nodos.contiene(estacion):
                     ruta.nodos.poner(estacion, ruta.paradas.agregar_al_final(estacion))
             self._rutas.poner(nombre, ruta)
+
+    def _cargar_horarios(self, ruta_archivo):
+        # 1) Juntar las horas de cada par (ruta, estación).
+        pares = []
+        for fila in _leer_csv(ruta_archivo, ["ruta", "estacion", "hora"]):
+            por_estacion = self._horarios.obtener(fila[0])
+            if por_estacion is None:
+                por_estacion = TablaHash()
+                self._horarios.poner(fila[0], por_estacion)
+            horas = por_estacion.obtener(fila[1])
+            if horas is None:
+                horas = []
+                por_estacion.poner(fila[1], horas)
+                pares.append((por_estacion, fila[1]))
+            horas.append(fila[2])
+        # 2) Ordenar cada arreglo (solo si hace falta) y quitar repetidas.
+        # "HH:MM" con dos dígitos se compara bien como texto: "07:05" < "13:40".
+        for par in pares:
+            por_estacion = par[0]
+            horas = por_estacion.obtener(par[1])
+            if not esta_ordenado(horas):
+                horas = merge_sort(horas)
+            sin_repetidas = []
+            for hora in horas:
+                if len(sin_repetidas) == 0 or sin_repetidas[len(sin_repetidas) - 1] != hora:
+                    sin_repetidas.append(hora)
+            por_estacion.poner(par[1], sin_repetidas)
 
     # Mantenimiento del arreglo de abiertas (R8).
     # Sacar o meter un nombre cuesta O(n) por el corrimiento de los demás;
@@ -193,7 +223,21 @@ class Red:
 
     # R4
     def proximo_bus(self, estacion, ruta, hora):
-        raise NotImplementedError
+        """Hora ("HH:MM") del primer bus de la ruta en la estación a la hora dada o después.
+
+        None si no hay horarios para ese par o no pasan más buses ese día.
+        O(log h), h = horas de esa ruta en esa estación.
+        """
+        por_estacion = self._horarios.obtener(ruta)
+        if por_estacion is None:
+            return None
+        horas = por_estacion.obtener(estacion)
+        if horas is None:
+            return None
+        i = primer_mayor_o_igual(horas, hora)
+        if i == len(horas):
+            return None
+        return horas[i]
 
     # R5
     def viaje(self, origen, destino):

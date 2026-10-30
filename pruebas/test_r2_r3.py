@@ -63,6 +63,8 @@ class TestR2R3(unittest.TestCase):
             f.write("nombre\nCHARLIE\nALFA\nDELTA\nBRAVO\nALFA\n")
         with open(os.path.join(d, "rutas.csv"), "w", encoding="utf-8") as f:
             f.write("ruta,orden,estacion\n")
+        with open(os.path.join(d, "horarios.csv"), "w", encoding="utf-8") as f:
+            f.write("ruta,estacion,hora\n")
         red = Red(d)
         self.assertEqual(red.rango("A", "Z"), ["ALFA", "BRAVO", "CHARLIE", "DELTA"])
 
