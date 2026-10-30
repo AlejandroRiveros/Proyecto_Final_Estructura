@@ -7,6 +7,36 @@ ABIERTA = "abierta"
 CERRADA = "cerrada"
 
 
+def _leer_csv(ruta_archivo, columnas):
+    """Lee un CSV con csv.reader (no DictReader: sus filas son dict, prohibido en el motor).
+
+    Devuelve una lista de filas, cada una con los valores de las columnas
+    pedidas en ese orden. Las columnas se ubican por el encabezado, así
+    que no importa en qué posición vengan en el archivo.
+    """
+    filas = []
+    with open(ruta_archivo, encoding="utf-8", newline="") as f:
+        lector = csv.reader(f)
+        encabezado = next(lector)
+        posiciones = []
+        for columna in columnas:
+            posicion = -1
+            for i in range(len(encabezado)):
+                if encabezado[i].strip() == columna:
+                    posicion = i
+            if posicion == -1:
+                raise ValueError("Falta la columna " + columna + " en " + ruta_archivo)
+            posiciones.append(posicion)
+        for fila in lector:
+            if len(fila) == 0:
+                continue
+            valores = []
+            for posicion in posiciones:
+                valores.append(fila[posicion].strip())
+            filas.append(valores)
+    return filas
+
+
 class Estacion:
     def __init__(self, nombre):
         self.nombre = nombre
@@ -45,12 +75,11 @@ class Red:
 
     def _cargar_estaciones(self, ruta_archivo):
         nombres = []
-        with open(ruta_archivo, encoding="utf-8", newline="") as f:
-            for fila in csv.DictReader(f):
-                nombre = fila["nombre"].strip()
-                if nombre != "" and not self._estaciones.contiene(nombre):
-                    self._estaciones.poner(nombre, Estacion(nombre))
-                    nombres.append(nombre)
+        for fila in _leer_csv(ruta_archivo, ["nombre"]):
+            nombre = fila[0]
+            if nombre != "" and not self._estaciones.contiene(nombre):
+                self._estaciones.poner(nombre, Estacion(nombre))
+                nombres.append(nombre)
         # No suponemos que el CSV venga ordenado: la red de prueba puede no estarlo.
         # Verificamos en O(n) y solo pagamos el merge sort O(n log n) si hace falta.
         if esta_ordenado(nombres):
@@ -73,16 +102,15 @@ class Red:
         # enlazarlas: no suponemos que el CSV las traiga en orden.
         filas_por_ruta = TablaHash()
         nombres_rutas = []
-        with open(ruta_archivo, encoding="utf-8", newline="") as f:
-            for fila in csv.DictReader(f):
-                ruta = fila["ruta"].strip()
-                filas = filas_por_ruta.obtener(ruta)
-                if filas is None:
-                    filas = []
-                    filas_por_ruta.poner(ruta, filas)
-                    nombres_rutas.append(ruta)
-                # (orden, estación): merge_sort compara primero por orden.
-                filas.append((int(fila["orden"]), fila["estacion"].strip()))
+        for fila in _leer_csv(ruta_archivo, ["ruta", "orden", "estacion"]):
+            ruta = fila[0]
+            filas = filas_por_ruta.obtener(ruta)
+            if filas is None:
+                filas = []
+                filas_por_ruta.poner(ruta, filas)
+                nombres_rutas.append(ruta)
+            # (orden, estación): merge_sort compara primero por orden.
+            filas.append((int(fila[1]), fila[2]))
         for nombre in nombres_rutas:
             filas = filas_por_ruta.obtener(nombre)
             if not esta_ordenado(filas):
