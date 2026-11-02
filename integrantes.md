@@ -3,5 +3,5 @@
 | Nombre | Requisitos |
 |---|---|
 | Alejandro Riveros | |
-| Miguel Peña|R10, R11 |
+| Miguel Peña|R10 |
 | | |
