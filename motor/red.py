@@ -468,7 +468,10 @@ class Red:
 
     # R7
     def agregar_parada(self, ruta, nueva, despues_de):
-        """Mete nueva justo después de despues_de en la ruta. O(1) promedio.
+        """Mete nueva justo después de despues_de en la ruta.
+
+        O(1) promedio en la ruta + O(d + 1) por mover la estación en el ranking
+        de R6 (d = puestos que salta; O(n) en el peor caso).
 
         True si la ruta cambió. False si la ruta no existe, despues_de no está
         en ella, nueva ya está en ella o nueva no es una estación de la red.
@@ -483,7 +486,10 @@ class Red:
         return True
 
     def quitar_parada(self, ruta, estacion):
-        """Saca estacion de la ruta. O(1) promedio.
+        """Saca estacion de la ruta.
+
+        O(1) promedio en la ruta + O(d + 1) por mover la estación en el ranking
+        de R6 (d = puestos que salta; O(n) en el peor caso).
 
         True si la ruta cambió. False si la ruta no existe o la estación no está en ella.
         """
@@ -533,7 +539,8 @@ class Red:
     def cerrar(self, nombre):
         """True si la estación existía y estaba abierta; False si no había nada que cerrar.
 
-        O(n), n = estaciones abiertas (corrimiento en el arreglo ordenado).
+        O(n), n = estaciones abiertas (corrimiento en el arreglo ordenado de
+        abiertas y en el ranking de R6).
         """
         estacion = self._estaciones.obtener(nombre)
         if estacion is None or not estacion.abierta:
@@ -590,7 +597,8 @@ class Red:
         """Deshace el último cambio. True si había algo que deshacer.
 
         O(1) para sacar de la pila + el costo del cambio contrario
-        (O(1) en rutas, O(n) en cerrar/reabrir).
+        (O(1) en la ruta + O(d + 1) en el ranking al restaurar una edición de
+        ruta, O(n) en cerrar/reabrir).
         """
         cambio = self._deshacer.desapilar()
         if cambio is None:
