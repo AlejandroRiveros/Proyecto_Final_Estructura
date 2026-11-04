@@ -48,6 +48,20 @@ class Estacion:
         self.pos_ranking = -1
 
 
+def _viaje_mejor(a, b):
+    """True si el viaje a es mejor que b: menos paradas; en empate, directo;
+    luego por nombre de la primera ruta, del transbordo y de la segunda ruta."""
+    if a[0] != b[0]:
+        return a[0] < b[0]
+    if (a[2] is None) != (b[2] is None):
+        return a[2] is None
+    if a[1] != b[1]:
+        return a[1] < b[1]
+    if a[2] != b[2]:
+        return a[2] < b[2]
+    return a[3] < b[3]
+
+
 def _va_antes(a, b):
     """Orden del ranking: más buses primero; a igual número, orden alfabético."""
     if a.buses != b.buses:
@@ -83,6 +97,9 @@ class Red:
         self._cargar_estaciones(carpeta + "/estaciones.csv")
         # nombre de ruta -> Ruta.
         self._rutas = TablaHash()
+        # R5: índice inverso estación -> (tabla hash ruta -> ruta), para saber
+        # en O(1) qué rutas paran en una estación sin recorrerlas todas.
+        self._rutas_por_estacion = TablaHash()
         self._cargar_rutas(carpeta + "/rutas.csv")
         # R4: ruta -> (estación -> arreglo ordenado y sin repetidos de horas "HH:MM").
         self._horarios = TablaHash()
@@ -145,6 +162,7 @@ class Red:
                 estacion = par[1]
                 if not ruta.nodos.contiene(estacion):
                     ruta.nodos.poner(estacion, ruta.paradas.agregar_al_final(estacion))
+                    self._indexar_parada(nombre, estacion)
             self._rutas.poner(nombre, ruta)
 
     def _cargar_horarios(self, ruta_archivo):
@@ -178,6 +196,24 @@ class Red:
                 if len(sin_repetidas) == 0 or sin_repetidas[len(sin_repetidas) - 1] != hora:
                     sin_repetidas.append(hora)
             por_estacion.poner(par[1], sin_repetidas)
+
+    def _indexar_parada(self, ruta, estacion):
+        rutas = self._rutas_por_estacion.obtener(estacion)
+        if rutas is None:
+            rutas = TablaHash()
+            self._rutas_por_estacion.poner(estacion, rutas)
+        rutas.poner(ruta, ruta)
+
+    def _desindexar_parada(self, ruta, estacion):
+        rutas = self._rutas_por_estacion.obtener(estacion)
+        if rutas is not None:
+            rutas.eliminar(ruta)
+
+    def _rutas_de(self, estacion):
+        rutas = self._rutas_por_estacion.obtener(estacion)
+        if rutas is None:
+            return []
+        return rutas.claves()
 
     def _buses_de(self, ruta, estacion):
         """Buses al día que aporta esta ruta a esta estación (0 si no hay horarios)."""
@@ -354,7 +390,68 @@ class Red:
 
     # R5
     def viaje(self, origen, destino):
-        raise NotImplementedError
+        """Viaje directo o con un transbordo que pasa por menos paradas.
+
+        Devuelve una lista de tramos (ruta, sube_en, baja_en): uno si es
+        directo y dos si hay transbordo. None si no hay viaje.
+        Origen, destino y transbordo tienen que estar abiertos; una estación
+        cerrada intermedia no corta la ruta, solo no se puede usar ahí.
+        O(R × L) con R = rutas por estación y L = paradas por ruta (máximos).
+        """
+        mejor = self._buscar_viaje(origen, destino)
+        if mejor is None:
+            return None
+        if mejor[2] is None:
+            return [(mejor[1], origen, destino)]
+        return [(mejor[1], origen, mejor[2]), (mejor[3], mejor[2], destino)]
+
+    def _abierta(self, nombre):
+        estacion = self._estaciones.obtener(nombre)
+        return estacion is not None and estacion.abierta
+
+    def _buscar_viaje(self, origen, destino):
+        """(paradas, ruta1, transbordo, ruta2), con transbordo None si es directo."""
+        if origen == destino or not self._abierta(origen) or not self._abierta(destino):
+            return None
+        # 1) Hacia adelante desde el origen: la mejor llegada a cada estación
+        #    abierta. llegadas: estación -> (paradas, ruta). Se cuenta 1 por cada
+        #    avance al nodo siguiente; ante igual número de paradas gana la ruta
+        #    de nombre menor, para que el resultado sea determinista.
+        llegadas = TablaHash()
+        for nombre_ruta in self._rutas_de(origen):
+            nodo = self._rutas.obtener(nombre_ruta).nodos.obtener(origen).siguiente
+            paradas = 1
+            while nodo is not None:
+                if self._abierta(nodo.valor):
+                    previa = llegadas.obtener(nodo.valor)
+                    if (previa is None or paradas < previa[0]
+                            or (paradas == previa[0] and nombre_ruta < previa[1])):
+                        llegadas.poner(nodo.valor, (paradas, nombre_ruta))
+                nodo = nodo.siguiente
+                paradas += 1
+        # El directo es solo un candidato: un transbordo puede tener menos paradas.
+        mejor = None
+        directo = llegadas.obtener(destino)
+        if directo is not None:
+            mejor = (directo[0], directo[1], None, None)
+        # 2) Hacia atrás desde el destino, con los punteros anterior de la lista
+        #    doble. Cada estación ya alcanzada desde el origen es un transbordo
+        #    posible; la estación de cambio no suma paradas extra.
+        for nombre_ruta in self._rutas_de(destino):
+            nodo = self._rutas.obtener(nombre_ruta).nodos.obtener(destino).anterior
+            paradas = 1
+            while nodo is not None:
+                cambio = nodo.valor
+                if cambio != origen and self._abierta(cambio):
+                    primera = llegadas.obtener(cambio)
+                    # Si las dos rutas coinciden es un directo, ya contado en 1).
+                    if primera is not None and primera[1] != nombre_ruta:
+                        candidato = (primera[0] + paradas, primera[1], cambio, nombre_ruta)
+                        if mejor is None or _viaje_mejor(candidato, mejor):
+                            mejor = candidato
+                nodo = nodo.anterior
+                paradas += 1
+        return mejor
 
     # R6
     def ranking(self, k):
@@ -412,12 +509,14 @@ class Red:
         else:
             nodo = r.paradas.insertar_despues(r.nodos.obtener(despues_de), nueva)
         r.nodos.poner(nueva, nodo)
+        self._indexar_parada(r.nombre, nueva)
         # R6: la parada suma los buses que esta ruta tiene ahí (0 si no hay horarios).
         self._cambiar_buses(nueva, self._buses_de(r.nombre, nueva))
 
     def _sacar_parada(self, r, estacion):
         r.paradas.quitar(r.nodos.obtener(estacion))
         r.nodos.eliminar(estacion)
+        self._desindexar_parada(r.nombre, estacion)
         self._cambiar_buses(estacion, -self._buses_de(r.nombre, estacion))
 
     def recorrido(self, ruta, al_reves=False):
