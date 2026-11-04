@@ -6,6 +6,19 @@
 - `rutas.csv`: ruta, orden, estacion
 - `horarios.csv`: ruta, estacion, hora
 
+## Qué hay en cada carpeta
+
+| Carpeta | Origen y uso |
+|---|---|
+| `datos/` | CSV entregados por el profesor. Los usan la app y las pruebas. |
+| `conversion/generados/` | CSV producidos por `convertir.py`. Es el entregable reproducible, con sus diferencias documentadas abajo. |
+
+Para regenerarlos:
+
+```
+python conversion/convertir.py GTFS-2021-07-14.zip conversion/generados --comparar datos
+```
+
 ## De dónde sale el GTFS
 
 "GTFS Estático 2021-07-14" de la Secretaría Distrital de Movilidad (fuente TransMilenio, licencia CC-BY):
@@ -44,4 +57,16 @@ Están explicadas al inicio de `convertir.py`. En resumen:
 
 Las 36 filas de más vienen de 7 viajes atípicos (1 o 2 viajes en su secuencia, en las rutas B44, E32, F32 y K10) que el profesor no incluyó y que nuestra regla asigna a una variante. No encontramos una regla general que los descarte sin descartar también otros viajes atípicos que el profesor sí incluyó, así que se dejan documentados.
 
-Las reglas se dedujeron comparando el GTFS con los CSV del profesor; no tenemos su script.
+No se agregó una lista de excepciones para borrar esos siete viajes: igualar el archivo a la fuerza no es una regla de conversión.
+
+Las reglas se dedujeron comparando el GTFS con los CSV del profesor; no tenemos su script. Son decisiones nuestras y así se presentan.
+
+## El motor con los CSV generados
+
+`pruebas/test_generados.py` carga `Red("conversion/generados")` y comprueba:
+
+- estaciones, `estado`, `autocompletar` y `recorrido` (ida y vuelta) de las 181 rutas: iguales que con `datos/`;
+- `viaje` en 400 pares al azar: igual que con `datos/` (R5 solo depende de rutas y estaciones);
+- `proximo_bus` en 3.000 consultas y el ranking completo: iguales a un cálculo a lo bruto sobre `conversion/generados/horarios.csv`.
+
+Con las 36 filas de más, el top 10 del ranking no cambia y solo 4 estaciones cambian de puesto.
