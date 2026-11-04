@@ -35,21 +35,7 @@ with tab2:
         st.info("Acción deshecha.")
 
 with tab3:
-    st.header("Panel de Rendimiento - R11")
-    st.write("Mide el tiempo de ejecución de las operaciones para demostrar la complejidad teórica.")
-    
-    if st.button("Ejecutar Pruebas de Rendimiento"):
-        tiempos = []
-        sizes = [100, 200, 400, 800] # Ejemplo de tamaños crecientes n y 2n
-        
-        # Medición simulada de una operación del motor (ej. búsqueda o ranking)
-        for n in sizes:
-            inicio = time.time()
-            # Simulamos carga de trabajo proporcional a n
-            _ = red.ranking(10)
-            fin = time.time()
-            tiempos.append((n, (fin - inicio) * 1000)) # en milisegundos
-            
-        st.write("Resultados de tiempo por tamaño de red (ms):")
-        st.line_chart(data={t[0]: t[1] for t in tiempos})
-        st.success("Pruebas de rendimiento completadas con éxito.")
+    # El panel R11 vive en app/panel_r11.py (mediciones en app/rendimiento.py).
+    # Mide redes propias, no la Red que usa esta app.
+    from panel_r11 import mostrar_panel_rendimiento
+    mostrar_panel_rendimiento()

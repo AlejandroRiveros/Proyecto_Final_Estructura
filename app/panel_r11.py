@@ -1,6 +1,7 @@
 """Vista del panel de rendimiento (R11) para Streamlit.
 
-app.py solo tiene que llamar a mostrar() dentro de su pestaña.
+app.py solo tiene que llamar a mostrar_panel_rendimiento() dentro de su pestaña.
+Las redes que se miden son propias (carpetas temporales), no la Red de la app.
 Las mediciones están en rendimiento.py; aquí solo se dibujan.
 """
 
@@ -21,6 +22,7 @@ for _carpeta in (os.path.dirname(_AQUI), _AQUI):
 
 import rendimiento  # noqa: E402
 
+# Todas las claves de st.session_state del panel empiezan con "r11_".
 CLAVE = "r11_escalamiento"
 # Diferencia máxima aceptada entre el exponente medido y el esperado
 # (pendiente en escala log-log). Es una guía visual, no una prueba.
@@ -106,7 +108,7 @@ def _modo_escalamiento():
         "API pública). La curva punteada es la complejidad esperada escalada con la "
         "mediana de tiempo / f(x): sirve para comparar la forma, no prueba nada por sí sola."
     )
-    if st.button("Medir", key="medir_escalamiento", type="primary"):
+    if st.button("Medir", key="r11_medir_escalamiento", type="primary"):
         st.session_state[CLAVE] = _medir_todo()
     resultados = st.session_state.get(CLAVE)
     if resultados is None:
@@ -136,11 +138,12 @@ def _modo_escalamiento():
         )
 
 
-def mostrar():
+def mostrar_panel_rendimiento():
+    """Única función pública: la pestaña R11 de app.py solo la llama."""
     st.header("Panel de rendimiento (R11)")
     modo = st.radio(
         "Modo", ["Escalamiento por operación", "Red real replicada"], horizontal=True,
-        label_visibility="collapsed",
+        label_visibility="collapsed", key="r11_modo",
     )
     if modo == "Escalamiento por operación":
         _modo_escalamiento()
@@ -151,4 +154,4 @@ def mostrar():
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Panel R11", layout="wide")
-    mostrar()
+    mostrar_panel_rendimiento()

@@ -127,22 +127,33 @@ def por_lote(llamar, argumentos, rondas=7):
 def por_llamada(preparar, medir, restaurar, repeticiones):
     """Mediana del tiempo (µs) de medir(), cronometrado solo.
 
-    preparar() y restaurar() corren fuera del cronómetro.
+    preparar() y restaurar() corren fuera del cronómetro. Las tres funciones
+    llaman a operaciones del motor que devuelven True/False, y cada una tiene
+    que devolver True: si alguna no cambió nada, la medición mezclaría
+    cambios con llamadas sin efecto, así que se detiene con un error.
+    Cada repetición parte del mismo estado: datos iguales, y las pilas con
+    a lo sumo un registro (el que deja el deshacer() de la restauración).
     """
     tiempos = []
     with _SinRecolector():
         for _ in range(repeticiones):
-            preparar()
+            _exigir(preparar(), "preparar")
             inicio = time.perf_counter_ns()
-            medir()
+            hecho = medir()
             fin = time.perf_counter_ns()
-            restaurar()
+            _exigir(hecho, "la operación medida")
+            _exigir(restaurar(), "restaurar")
             tiempos.append(max(fin - inicio - COSTO_RELOJ_NS, 0))
     return statistics.median(tiempos) / 1000
 
 
+def _exigir(resultado, paso):
+    if resultado is not True:
+        raise RuntimeError("R11: %s no hizo ningún cambio; la medición no sería válida" % paso)
+
+
 def _nada():
-    pass
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -459,13 +470,12 @@ def exp_reabrir():
     for n in TAMANOS_N:
         red = _red_cierre(n)
 
-        def preparar():
-            red.cerrar("E 000000")
+        def preparar(red=red):
+            return red.cerrar("E 000000")
 
-        def restaurar():
+        def restaurar(red=red):
             # Deshace reabrir y luego cerrar: datos y pilas quedan como al inicio.
-            red.deshacer()
-            red.deshacer()
+            return red.deshacer() and red.deshacer()
 
         puntos.append((n, por_llamada(preparar, lambda: red.reabrir("E 000000"), restaurar, 40)))
     return dict(
@@ -482,13 +492,12 @@ def _exp_historial(operacion, construir, hacer, cronometrar_rehacer, esperado, r
         red = construir(n)
         if cronometrar_rehacer:
             def preparar(red=red):
-                hacer(red)
-                red.deshacer()
+                return hacer(red) and red.deshacer()
             medir = red.rehacer
             restaurar = red.deshacer
         else:
             def preparar(red=red):
-                hacer(red)
+                return hacer(red)
             medir = red.deshacer
             restaurar = _nada
         puntos.append((n, por_llamada(preparar, medir, restaurar, reps)))

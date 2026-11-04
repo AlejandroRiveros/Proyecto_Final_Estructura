@@ -4,7 +4,16 @@ Proyecto final de Estructuras de Datos y Algoritmos, Universidad de La Sabana, 2
 
 ## Cómo arrancar
 
-_Pendiente: comando único para arrancar la app._
+Desde la raíz del repositorio, una sola vez: `pip install -r requirements.txt`. Después:
+
+```
+python -m streamlit run app/app.py
+```
+
+Se usa `python -m` porque así la raíz del repositorio queda en el path y la app encuentra `motor/`
+(con `streamlit run app/app.py` a secas, Python solo ve la carpeta `app/`).
+
+El panel de rendimiento (R11) también se puede abrir solo: `python -m streamlit run app/panel_r11.py`.
 
 ## Estructura
 
