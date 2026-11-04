@@ -179,7 +179,8 @@ def _como_se_mide():
             "- Las consultas se miden por lotes de miles de llamadas, en 7 rondas, y se toma la mediana.\n"
             "- Las operaciones que cambian la red se cronometran solas (restando el costo del reloj, "
             "%.0f ns). Después `deshacer()` restaura datos e historial fuera del cronómetro.\n"
-            "- En la red real replicada, la carga se mide una vez por tamaño (tarda segundos).\n"
+            "- En la red real replicada, la carga es una sola medición por tamaño (no una mediana), "
+            "para que el modo termine en un tiempo razonable; no estima la variabilidad.\n"
             "- Durante cada medición se apaga el recolector de basura de Python, como hace `timeit`.\n"
             "- R10 (`simular_fila`) se agrega cuando esté corregida." % rendimiento.COSTO_RELOJ_NS
         )

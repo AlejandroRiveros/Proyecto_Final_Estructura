@@ -795,12 +795,14 @@ def _medir_replica(red, base, c, azar, todos_ordenados):
 _REPLICADA = [
     ("carga", "Carga", "Red(carpeta)", "O(n log n)", None,
      "Se multiplican todas las filas, así que crece T. Cota global O(T log T); aquí el eje "
-     "es n = estaciones, que crece en la misma proporción que T."),
+     "es n = estaciones, que crece en la misma proporción que T. Cada punto es una sola "
+     "medición (no una mediana): sirve para ver la tendencia, sin estimar su variabilidad."),
     ("estado", "R1", "estado(nombre)", "O(1)", "µs solo copia 1",
-     "Tabla hash: más estaciones no cambian el número de pasos. La subida que se ve es de "
-     "memoria: al repartir las consultas entre copias, los datos no caben en la caché del "
-     "procesador. La columna \"µs solo copia 1\" hace las mismas consultas en la misma red "
-     "pero solo sobre la copia 1, y se mantiene casi plana."),
+     "Tabla hash: con factor de carga acotado, más estaciones no cambian el costo promedio. "
+     "Consultar solamente la copia 1 resulta más rápido (columna \"µs solo copia 1\"), lo que es "
+     "compatible con una mejor localidad de memoria. También pueden influir la longitud de las "
+     "claves (las otras copias agregan \" ~c\" y el hash recorre cada carácter) y las colisiones "
+     "de las tablas hash, que no son idénticas; esta comparación no separa esos efectos."),
     ("autocompletar", "R2", "autocompletar(prefijo, 10)", "O(log n)", None,
      "Búsqueda binaria sobre más estaciones; k = 10 fijo. De 147 a 1.176 estaciones, "
      "log n pasa de 7,2 a 10,2: la subida es pequeña."),
@@ -808,21 +810,26 @@ _REPLICADA = [
      "desde y hasta son vecinos a 10 puestos en la lista ordenada de la réplica, así que "
      "m = 10 en todos los tamaños y solo crece la búsqueda binaria."),
     ("proximo_bus", "R4", "proximo_bus(estacion, ruta, hora)", "O(1)", "µs solo copia 1",
-     "Es O(log h), pero h (horas distintas del par) no cambia al copiar la red: ver la "
-     "tabla de dimensiones. El algoritmo hace los mismos pasos en todos los tamaños. Lo "
-     "que sube es efecto de memoria: con 8 copias hay más de un millón de horas guardadas "
-     "y, al consultar copias distintas, casi nunca están en la caché. La columna \"µs solo "
-     "copia 1\" lo comprueba: en la misma red grande, consultando solo la copia 1, el "
-     "tiempo sube mucho menos."),
+     "Es O(log h), y h (horas distintas del par) no cambia al copiar la red: ver la tabla "
+     "de dimensiones. La búsqueda binaria es igual en todos los tamaños; lo que crece son "
+     "las tablas hash que se consultan antes (estaciones, rutas y horarios). "
+     "Consultar solamente la copia 1 resulta más rápido (columna \"µs solo copia 1\"), lo que es "
+     "compatible con una mejor localidad de memoria. También pueden influir la longitud de las "
+     "claves (las otras copias agregan \" ~c\" y el hash recorre cada carácter) y las colisiones "
+     "de las tablas hash, que no son idénticas; esta comparación no separa esos efectos."),
     ("viaje", "R5 (informativo)", "viaje(origen, destino)", "O(1)", None,
      "Origen y destino siempre en la misma copia, y las rutas que pasan por ellos no "
-     "cambian: el trabajo del algoritmo no crece. Puede variar algo por memoria y caché."),
+     "cambian: los recorridos son del mismo largo. Puede variar algo por memoria, por la "
+     "longitud de las claves y por las colisiones de las tablas hash."),
     ("ranking", "R6", "ranking(10)", "O(1)", None,
      "El ranking ya está ordenado: pedir 10 cuesta lo mismo con más estaciones. "
      "Que quede plano es la evidencia de que la consulta no depende de n."),
     ("recorrido", "R7", "recorrido(ruta)", "O(1)", "µs solo copia 1",
-     "Es O(L), pero el largo de cada ruta no cambia al copiar la red. La subida es de "
-     "memoria, como en estado y proximo_bus (ver la columna \"µs solo copia 1\")."),
+     "Es O(L), y el largo de cada ruta no cambia al copiar la red. "
+     "Consultar solamente la copia 1 resulta más rápido (columna \"µs solo copia 1\"), lo que es "
+     "compatible con una mejor localidad de memoria. También pueden influir la longitud de las "
+     "claves (las otras copias agregan \" ~c\" y el hash recorre cada carácter) y las colisiones "
+     "de las tablas hash, que no son idénticas; esta comparación no separa esos efectos."),
     ("quitar_parada", "R7 + R6", "quitar_parada(ruta, estacion)", "O(n)", "d (mediana)",
      "La lista doble se edita en O(1), pero el ranking es global y cuesta O(d + 1). Con "
      "más copias hay más estaciones con conteos de buses parecidos, así que una parada "
