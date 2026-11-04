@@ -615,11 +615,303 @@ EXPERIMENTOS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Modo "Red real replicada"
+# ---------------------------------------------------------------------------
+# La red real (carpeta datos/) se copia 1, 2, 4 y 8 veces como copias
+# separadas: la copia 1 conserva los nombres y la copia c >= 2 agrega " ~c"
+# a cada estación y a cada ruta, de forma consistente en los tres CSV.
+# Se conservan todas las filas de horarios, incluidas las repetidas.
+# No es una reproducción del script del profesor: no sabemos cómo transforma
+# él rutas, horarios o consultas.
+
+COPIAS = [1, 2, 4, 8]
+DATOS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "datos")
+
+
+def _leer(carpeta, archivo, columnas):
+    """Filas del CSV con solo las columnas pedidas, en ese orden."""
+    with open(os.path.join(carpeta, archivo), newline="", encoding="utf-8") as f:
+        lector = csv.reader(f)
+        encabezado = [c.strip() for c in next(lector)]
+        pos = [encabezado.index(c) for c in columnas]
+        return [[fila[i].strip() for i in pos] for fila in lector if fila]
+
+
+def leer_red_real(carpeta=DATOS):
+    return {
+        "estaciones": [f[0] for f in _leer(carpeta, "estaciones.csv", ["nombre"])],
+        "rutas": _leer(carpeta, "rutas.csv", ["ruta", "orden", "estacion"]),
+        "horarios": _leer(carpeta, "horarios.csv", ["ruta", "estacion", "hora"]),
+    }
+
+
+def sufijo(nombre, copia):
+    return nombre if copia == 1 else "%s ~%d" % (nombre, copia)
+
+
+def escribir_replica(carpeta, real, copias):
+    filas_est, filas_rut, filas_hor = [], [], []
+    for c in range(1, copias + 1):
+        filas_est += [[sufijo(e, c)] for e in real["estaciones"]]
+        filas_rut += [[sufijo(r, c), o, sufijo(e, c)] for r, o, e in real["rutas"]]
+        filas_hor += [[sufijo(r, c), sufijo(e, c), h] for r, e, h in real["horarios"]]
+    for nombre, encabezado, filas in (
+        ("estaciones.csv", ["nombre"], filas_est),
+        ("rutas.csv", ["ruta", "orden", "estacion"], filas_rut),
+        ("horarios.csv", ["ruta", "estacion", "hora"], filas_hor),
+    ):
+        with open(os.path.join(carpeta, nombre), "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(encabezado)
+            w.writerows(filas)
+    return filas_est, filas_rut, filas_hor
+
+
+def dimensiones(filas_est, filas_rut, filas_hor):
+    """Lo que mide cada dimensión en la réplica escrita (calculado de los CSV, no supuesto)."""
+    paradas = {}
+    rutas_de = {}
+    for r, _, e in filas_rut:
+        paradas.setdefault(r, set()).add(e)
+        rutas_de.setdefault(e, set()).add(r)
+    horas = {}
+    for r, e, h in filas_hor:
+        horas.setdefault((r, e), set()).add(h)
+    largo = [len(v) for v in paradas.values()]
+    por_par = [len(v) for v in horas.values()]
+    por_est = [len(v) for v in rutas_de.values()]
+    return {
+        "Estaciones": len(filas_est),
+        "Rutas": len(paradas),
+        "Filas de rutas.csv": len(filas_rut),
+        "Filas de horarios.csv": len(filas_hor),
+        "Paradas por ruta (promedio)": round(statistics.mean(largo), 1),
+        "Paradas por ruta (máximo)": max(largo),
+        "Horas distintas por par ruta–estación (máximo)": max(por_par),
+        "Rutas por estación (máximo)": max(por_est),
+    }
+
+
+def _muestras_base(real, azar):
+    """Consultas sobre la copia 1. En cada tamaño se mandan a una copia al azar,
+    así todos los tamaños hacen el mismo trabajo, solo que en una red más grande."""
+    con_horario = sorted({(r, e) for r, e, _ in real["horarios"]})
+    rutas = sorted({r for r, _, _ in real["rutas"]})
+    paradas = sorted({(r, e) for r, _, e in real["rutas"]})
+    est = real["estaciones"]
+    return {
+        "estaciones": [azar.choice(est) for _ in range(2000)],
+        "prefijos": [azar.choice(est)[:3] for _ in range(2000)],
+        "proximo": [(e, r, hora_de(azar.randrange(1440))) for r, e in
+                    (azar.choice(con_horario) for _ in range(2000))],
+        "viajes": [tuple(azar.sample(est, 2)) for _ in range(100)],
+        "rutas": [azar.choice(rutas) for _ in range(500)],
+        "paradas": [azar.choice(paradas) for _ in range(300)],
+        "cierres": [azar.choice(est) for _ in range(100)],
+    }
+
+
+def _posicion(red, nombre):
+    """Puesto de la estación en el ranking, por la API pública (fuera del cronómetro)."""
+    return red.ranking(10 ** 9).index(nombre)
+
+
+def _medir_replica(red, base, c, azar, todos_ordenados):
+    """Diccionario operación -> (µs, dato extra o None) para una réplica con c copias."""
+    copia = lambda: azar.randrange(1, c + 1)
+    res = {}
+    # En estado, proximo_bus y recorrido se mide además consultando solo la
+    # copia 1: el algoritmo hace lo mismo, pero los datos tocados caben mejor
+    # en la caché. La diferencia entre las dos mediciones es efecto de memoria.
+    res["estado"] = (por_lote(red.estado, [(sufijo(e, copia()),) for e in base["estaciones"]]),
+                     round(por_lote(red.estado, [(e,) for e in base["estaciones"]]), 2))
+    res["autocompletar"] = (por_lote(red.autocompletar, [(p, 10) for p in base["prefijos"]]), None)
+    consultas = []
+    for _ in range(2000):
+        i = azar.randrange(len(todos_ordenados) - 10)
+        consultas.append((todos_ordenados[i], todos_ordenados[i + 9]))
+    m = statistics.median(len(red.rango(a, b)) for a, b in consultas[:200])
+    res["rango"] = (por_lote(red.rango, consultas), m)
+    proximo = []
+    for e, r, h in base["proximo"]:
+        k = copia()
+        proximo.append((sufijo(e, k), sufijo(r, k), h))
+    res["proximo_bus"] = (por_lote(red.proximo_bus, proximo),
+                          round(por_lote(red.proximo_bus, base["proximo"]), 2))
+    viajes = []
+    for a, b in base["viajes"]:
+        k = copia()
+        viajes.append((sufijo(a, k), sufijo(b, k)))
+    res["viaje"] = (por_lote(red.viaje, viajes, rondas=5), None)
+    res["ranking"] = (por_lote(red.ranking, [(10,)] * 2000), None)
+    res["recorrido"] = (por_lote(red.recorrido, [(sufijo(r, copia()),) for r in base["rutas"]]),
+                        round(por_lote(red.recorrido, [(r,) for r in base["rutas"]]), 2))
+
+    # Ediciones: cada una se cronometra sola y se restaura con deshacer() fuera
+    # del cronómetro. d = puestos que se movió la estación en el ranking.
+    tiempos, ds, tiempos_deshacer = [], [], []
+    with _SinRecolector():
+        for r, e in base["paradas"]:
+            k = copia()
+            r, e = sufijo(r, k), sufijo(e, k)
+            antes = _posicion(red, e)
+            inicio = time.perf_counter_ns()
+            hecho = red.quitar_parada(r, e)
+            fin = time.perf_counter_ns()
+            _exigir(hecho, "quitar_parada")
+            ds.append(abs(_posicion(red, e) - antes))
+            inicio2 = time.perf_counter_ns()
+            hecho = red.deshacer()
+            fin2 = time.perf_counter_ns()
+            _exigir(hecho, "deshacer")
+            tiempos.append(max(fin - inicio - COSTO_RELOJ_NS, 0))
+            tiempos_deshacer.append(max(fin2 - inicio2 - COSTO_RELOJ_NS, 0))
+    res["quitar_parada"] = (statistics.median(tiempos) / 1000, statistics.median(ds))
+    res["deshacer"] = (statistics.median(tiempos_deshacer) / 1000, statistics.median(ds))
+
+    tiempos, tiempos_reabrir = [], []
+    with _SinRecolector():
+        for e in base["cierres"]:
+            e = sufijo(e, copia())
+            inicio = time.perf_counter_ns()
+            hecho = red.cerrar(e)
+            fin = time.perf_counter_ns()
+            _exigir(hecho, "cerrar")
+            inicio2 = time.perf_counter_ns()
+            hecho = red.reabrir(e)
+            fin2 = time.perf_counter_ns()
+            _exigir(hecho, "reabrir")
+            # Deshace reabrir y cerrar: datos y pilas vuelven a quedar iguales.
+            _exigir(red.deshacer() and red.deshacer(), "restaurar")
+            tiempos.append(max(fin - inicio - COSTO_RELOJ_NS, 0))
+            tiempos_reabrir.append(max(fin2 - inicio2 - COSTO_RELOJ_NS, 0))
+    res["cerrar"] = (statistics.median(tiempos) / 1000, None)
+    res["reabrir"] = (statistics.median(tiempos_reabrir) / 1000, None)
+    return res
+
+
+# operación -> (requisito, firma, esperado al replicar, extra, explicación)
+_REPLICADA = [
+    ("carga", "Carga", "Red(carpeta)", "O(n log n)", None,
+     "Se multiplican todas las filas, así que crece T. Cota global O(T log T); aquí el eje "
+     "es n = estaciones, que crece en la misma proporción que T."),
+    ("estado", "R1", "estado(nombre)", "O(1)", "µs solo copia 1",
+     "Tabla hash: más estaciones no cambian el número de pasos. La subida que se ve es de "
+     "memoria: al repartir las consultas entre copias, los datos no caben en la caché del "
+     "procesador. La columna \"µs solo copia 1\" hace las mismas consultas en la misma red "
+     "pero solo sobre la copia 1, y se mantiene casi plana."),
+    ("autocompletar", "R2", "autocompletar(prefijo, 10)", "O(log n)", None,
+     "Búsqueda binaria sobre más estaciones; k = 10 fijo. De 147 a 1.176 estaciones, "
+     "log n pasa de 7,2 a 10,2: la subida es pequeña."),
+    ("rango", "R3", "rango(desde, hasta)", "O(log n)", "m (mediana)",
+     "desde y hasta son vecinos a 10 puestos en la lista ordenada de la réplica, así que "
+     "m = 10 en todos los tamaños y solo crece la búsqueda binaria."),
+    ("proximo_bus", "R4", "proximo_bus(estacion, ruta, hora)", "O(1)", "µs solo copia 1",
+     "Es O(log h), pero h (horas distintas del par) no cambia al copiar la red: ver la "
+     "tabla de dimensiones. El algoritmo hace los mismos pasos en todos los tamaños. Lo "
+     "que sube es efecto de memoria: con 8 copias hay más de un millón de horas guardadas "
+     "y, al consultar copias distintas, casi nunca están en la caché. La columna \"µs solo "
+     "copia 1\" lo comprueba: en la misma red grande, consultando solo la copia 1, el "
+     "tiempo sube mucho menos."),
+    ("viaje", "R5 (informativo)", "viaje(origen, destino)", "O(1)", None,
+     "Origen y destino siempre en la misma copia, y las rutas que pasan por ellos no "
+     "cambian: el trabajo del algoritmo no crece. Puede variar algo por memoria y caché."),
+    ("ranking", "R6", "ranking(10)", "O(1)", None,
+     "El ranking ya está ordenado: pedir 10 cuesta lo mismo con más estaciones. "
+     "Que quede plano es la evidencia de que la consulta no depende de n."),
+    ("recorrido", "R7", "recorrido(ruta)", "O(1)", "µs solo copia 1",
+     "Es O(L), pero el largo de cada ruta no cambia al copiar la red. La subida es de "
+     "memoria, como en estado y proximo_bus (ver la columna \"µs solo copia 1\")."),
+    ("quitar_parada", "R7 + R6", "quitar_parada(ruta, estacion)", "O(n)", "d (mediana)",
+     "La lista doble se edita en O(1), pero el ranking es global y cuesta O(d + 1). Con "
+     "más copias hay más estaciones con conteos de buses parecidos, así que una parada "
+     "típica cruza más puestos: d crece en proporción a n (ver la columna d). El tiempo "
+     "crece menos que n porque a estos tamaños d es pequeño (unas decenas) y pesa más el "
+     "costo fijo de la edición; con redes más grandes la parte O(d) dominaría. Es la "
+     "tensión entre R6 y R7, pendiente de lo que responda el profesor."),
+    ("deshacer", "R9", "deshacer() de quitar_parada", "O(n)", "d (mediana)",
+     "Sacar de la pila es O(1); el costo es volver a meter la parada, que mueve la "
+     "estación los mismos d puestos. Crece menos que n por la misma razón que quitar."),
+    ("cerrar", "R8", "cerrar(nombre)", "O(n)", None,
+     "Corrimiento en el arreglo de abiertas y en el ranking: lineal en las estaciones."),
+    ("reabrir", "R8", "reabrir(nombre)", "O(n)", None,
+     "Búsqueda binaria de su lugar y corrimiento: lineal en las estaciones."),
+]
+
+
+def medir_red_replicada(carpeta_real=DATOS, avance=None):
+    """Mide la red real copiada 1, 2, 4 y 8 veces.
+
+    Devuelve (dimensiones, experimentos): dimensiones es una lista de filas
+    {"Dimensión": ..., "×1": ..., "×2": ...}; experimentos tiene el mismo
+    formato que el modo de escalamiento, con x = estaciones totales.
+    """
+    real = leer_red_real(carpeta_real)
+    azar = random.Random(7)
+    base = _muestras_base(real, azar)
+    por_copias = {}
+    dims = {}
+    for i, c in enumerate(COPIAS):
+        if avance:
+            avance(i, len(COPIAS), c)
+        with tempfile.TemporaryDirectory(prefix="r11_real_") as carpeta:
+            filas = escribir_replica(carpeta, real, c)
+            dims[c] = dimensiones(*filas)
+            todos = sorted(f[0] for f in filas[0])
+            # Una sola carga por tamaño: tarda segundos, así que el ruido pesa poco
+            # y repetirla haría que el modo pasara del minuto.
+            with _SinRecolector():
+                inicio = time.perf_counter_ns()
+                red = Red(carpeta)
+                fin = time.perf_counter_ns()
+        res = _medir_replica(red, base, c, azar, todos)
+        res["carga"] = ((fin - inicio) / 1000, None)
+        por_copias[c] = (len(filas[0]), res)
+        del red
+    tabla = []
+    for nombre in dims[COPIAS[0]]:
+        fila = {"Dimensión": nombre}
+        for c in COPIAS:
+            fila["×%d" % c] = dims[c][nombre]
+        primero, ultimo = dims[COPIAS[0]][nombre], dims[COPIAS[-1]][nombre]
+        fila["Al replicar"] = "Se multiplica" if ultimo != primero else "Queda igual"
+        tabla.append(fila)
+    experimentos = []
+    for clave, req, firma, esperado, extra, explicacion in _REPLICADA:
+        puntos = [(por_copias[c][0], por_copias[c][1][clave][0]) for c in COPIAS]
+        r = dict(
+            requisito=req, operacion=firma, variable="n = estaciones totales de la réplica",
+            fijos="Copias ×1, ×2, ×4, ×8 de la red real; consultas al azar sobre datos reales",
+            esperado=esperado, puntos=puntos, explicacion=explicacion,
+        )
+        if extra:
+            r["extra"] = (extra, [por_copias[c][1][clave][1] for c in COPIAS])
+        experimentos.append(r)
+    return tabla, experimentos
+
+
+def _imprimir(r, segundos=0.0):
+    filas = " | ".join("%d: %.2f" % p for p in r["puntos"])
+    if "extra" in r:
+        filas += "   %s: %s" % (r["extra"][0], r["extra"][1])
+    print("%-34s %-11s b=%.2f  (%.1fs)  %s" % (
+        r["operacion"], r["esperado"], exponente(r["puntos"]), segundos, filas))
+
+
 if __name__ == "__main__":
+    import sys
+
+    if len(sys.argv) > 1 and sys.argv[1] == "replicada":
+        inicio = time.perf_counter()
+        tabla, exps = medir_red_replicada()
+        for fila in tabla:
+            print(fila)
+        for r in exps:
+            _imprimir(r)
+        print("Total %.1fs" % (time.perf_counter() - inicio))
+        sys.exit(0)
     for exp in EXPERIMENTOS:
         inicio = time.perf_counter()
         r = exp()
-        filas = " | ".join("%d: %.2f" % p for p in r["puntos"])
-        print("%-34s %-11s b=%.2f  (%.1fs)  %s" % (
-            r["operacion"], r["esperado"], exponente(r["puntos"]),
-            time.perf_counter() - inicio, filas))
+        _imprimir(r, time.perf_counter() - inicio)
