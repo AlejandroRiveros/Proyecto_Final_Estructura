@@ -9,8 +9,13 @@ st.title("🚌 Planeador de Viajes TransMilenio - Motor EDA")
 
 # Cargar la red (asumiendo que los CSV están en 'datos/')
 ruta_datos = "datos"
+# Streamlit vuelve a correr este script en cada clic: la Red se guarda en
+# st.session_state para que cierres, ediciones y el historial de deshacer
+# sobrevivan entre interacciones. Se carga una sola vez por sesión.
 if os.path.exists(ruta_datos):
-    red = Red(ruta_datos)
+    if "app_red" not in st.session_state:
+        st.session_state["app_red"] = Red(ruta_datos)
+    red = st.session_state["app_red"]
 else:
     st.error(f"No se encuentra la carpeta de datos en '{ruta_datos}'.")
 

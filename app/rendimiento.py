@@ -65,10 +65,14 @@ def escribir_red(carpeta, estaciones, rutas=(), horarios=(), desordenar=False, s
 
 
 def cargar_red(estaciones, rutas=(), horarios=(), desordenar=False):
-    """Escribe la red en una carpeta temporal y la carga con Red(carpeta)."""
-    carpeta = tempfile.mkdtemp(prefix="r11_")
-    escribir_red(carpeta, estaciones, rutas, horarios, desordenar)
-    return Red(carpeta)
+    """Escribe la red en una carpeta temporal y la carga con Red(carpeta).
+
+    Red lee los CSV solo al construirse, así que la carpeta se borra al salir
+    del with (también si hay una excepción) y no quedan archivos en disco.
+    """
+    with tempfile.TemporaryDirectory(prefix="r11_") as carpeta:
+        escribir_red(carpeta, estaciones, rutas, horarios, desordenar)
+        return Red(carpeta)
 
 
 def nombres(n, prefijo="E"):
@@ -132,7 +136,8 @@ def por_llamada(preparar, medir, restaurar, repeticiones):
     que devolver True: si alguna no cambió nada, la medición mezclaría
     cambios con llamadas sin efecto, así que se detiene con un error.
     Cada repetición parte del mismo estado: datos iguales, y las pilas con
-    a lo sumo un registro (el que deja el deshacer() de la restauración).
+    pocos registros que no crecen entre repeticiones: uno en casi todos los
+    experimentos, y dos en el de reabrir, cuya restauración hace dos deshacer().
     """
     tiempos = []
     with _SinRecolector():
@@ -569,16 +574,19 @@ def exp_carga():
         # 50 rutas que se reparten todas las estaciones: filas de rutas = n.
         rutas = [("R%d" % i, nom[i::50]) for i in range(50)]
         horarios = [(r, e, hora_de(_azar.randrange(1440))) for r, ps in rutas for e in ps for _ in range(4)]
-        carpeta = tempfile.mkdtemp(prefix="r11_carga_")
-        escribir_red(carpeta, nom, rutas, horarios, desordenar=True)
         total = n + sum(len(ps) for _, ps in rutas) + len(horarios)
         tiempos = []
-        for _ in range(3):
-            with _SinRecolector():
-                inicio = time.perf_counter_ns()
-                Red(carpeta)
-                fin = time.perf_counter_ns()
-            tiempos.append((fin - inicio) / 1000)
+        with tempfile.TemporaryDirectory(prefix="r11_carga_") as carpeta:
+            escribir_red(carpeta, nom, rutas, horarios, desordenar=True)
+            for _ in range(3):
+                with _SinRecolector():
+                    inicio = time.perf_counter_ns()
+                    red = Red(carpeta)
+                    fin = time.perf_counter_ns()
+                # La red se libera después de parar el reloj: liberar un objeto
+                # grande no es parte de la carga.
+                del red
+                tiempos.append((fin - inicio) / 1000)
         puntos.append((total, statistics.median(tiempos)))
     return dict(
         requisito="Carga", operacion="Red(carpeta)",
