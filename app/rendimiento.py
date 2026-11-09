@@ -31,7 +31,7 @@ import statistics
 import tempfile
 import time
 
-from motor import Red
+from motor import Red, simular_fila
 
 # ---------------------------------------------------------------------------
 # Generación de redes
@@ -600,6 +600,61 @@ def exp_carga():
     )
 
 
+TAMANOS_P = [50000, 100000, 200000, 400000]
+
+
+def _llegadas(p, desordenar):
+    # 50 pasajeros por minuto: al duplicar P se duplica también la ventana de tiempo.
+    llegadas = [i // 50 for i in range(p)]
+    if desordenar:
+        random.Random(p).shuffle(llegadas)
+    return llegadas
+
+
+def _exp_fila(desordenar, esperado, fijos, explicacion):
+    puntos = []
+    for p in TAMANOS_P:
+        llegadas = _llegadas(p, desordenar)
+        tiempos = []
+        for _ in range(3):
+            with _SinRecolector():
+                inicio = time.perf_counter_ns()
+                esperas = simular_fila(llegadas, 3, 160)
+                fin = time.perf_counter_ns()
+            if len(esperas) != p:
+                raise RuntimeError("R11: simular_fila no devolvió una espera por pasajero")
+            del esperas
+            tiempos.append((fin - inicio) / 1000)
+        puntos.append((p, statistics.median(tiempos)))
+    return dict(
+        requisito="R10", operacion="simular_fila(llegadas, frecuencia, capacidad)",
+        variable="P = pasajeros", fijos=fijos, esperado=esperado, puntos=puntos,
+        explicacion=explicacion,
+    )
+
+
+def exp_fila_ordenada():
+    return _exp_fila(
+        False, "O(n)",
+        "Llegadas ya ordenadas, 50 por minuto; frecuencia 3 min, capacidad 160",
+        "Revisar el orden es una pasada O(P). Luego cada pasajero entra y sale de la "
+        "cola una vez, y cada salida con abordaje sube al menos a uno, así que hay a lo "
+        "sumo P salidas; las vacías se saltan con una cuenta. Total O(P). La red no "
+        "interviene: R10 no depende de estaciones ni rutas.",
+    )
+
+
+def exp_fila_desordenada():
+    return _exp_fila(
+        True, "O(n log n)",
+        "Las mismas llegadas, barajadas; frecuencia 3 min, capacidad 160",
+        "La revisión del orden falla, así que se ordena una copia con merge sort, "
+        "O(P log P), y después se simula en O(P). Domina el ordenamiento. De 50.000 a "
+        "400.000, log P solo pasa de 15,6 a 18,6, así que cuesta distinguir esta curva "
+        "de una lineal más empinada.",
+    )
+
+
 EXPERIMENTOS = [
     exp_carga,
     exp_estado,
@@ -612,6 +667,7 @@ EXPERIMENTOS = [
     exp_quitar_pequeno, exp_quitar_extremo, exp_agregar_pequeno,
     exp_cerrar, exp_reabrir,
     exp_deshacer_quitar, exp_rehacer_quitar, exp_deshacer_cerrar, exp_rehacer_cerrar,
+    exp_fila_ordenada, exp_fila_desordenada,
 ]
 
 

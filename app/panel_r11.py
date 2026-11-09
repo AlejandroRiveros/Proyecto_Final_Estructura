@@ -182,7 +182,8 @@ def _como_se_mide():
             "- En la red real replicada, la carga es una sola medición por tamaño (no una mediana), "
             "para que el modo termine en un tiempo razonable; no estima la variabilidad.\n"
             "- Durante cada medición se apaga el recolector de basura de Python, como hace `timeit`.\n"
-            "- R10 (`simular_fila`) se agrega cuando esté corregida." % rendimiento.COSTO_RELOJ_NS
+            "- R10 (`simular_fila`) no usa la red: solo aparece en el escalamiento, creciendo los "
+            "pasajeros, con llegadas ordenadas y desordenadas por separado." % rendimiento.COSTO_RELOJ_NS
         )
 
 

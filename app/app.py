@@ -81,12 +81,21 @@ with tab1:
         st.write(res_r6)
 
     st.subheader("Simular Fila (R10)")
-    lleg_r10 = st.number_input("Llegadas:", min_value=0, value=5)
-    freq_r10 = st.number_input("Frecuencia:", min_value=1, value=10)
-    cap_r10 = st.number_input("Capacidad:", min_value=1, value=3)
+    lleg_r10 = st.text_input("Minuto de llegada de cada pasajero (separados por coma):", value="0, 1, 1, 4")
+    freq_r10 = st.number_input("Frecuencia (minutos entre buses, el primero sale en el minuto 0):", min_value=1, value=2)
+    cap_r10 = st.number_input("Capacidad de cada bus:", min_value=1, value=1)
     if st.button("Simular Fila"):
-        res_r10 = simular_fila(int(lleg_r10), int(freq_r10), int(cap_r10))
-        st.write(res_r10)
+        try:
+            llegadas_r10 = [int(x) for x in lleg_r10.replace(" ", "").split(",") if x != ""]
+        except ValueError:
+            st.warning("Escribe minutos enteros separados por coma, por ejemplo 0, 1, 1, 4.")
+            st.stop()
+        esperas = simular_fila(llegadas_r10, int(freq_r10), int(cap_r10))
+        if not esperas:
+            st.info("No hay pasajeros.")
+        else:
+            st.write("Espera de cada pasajero, en orden de llegada (minutos):", esperas)
+            st.write(f"Espera promedio: {sum(esperas) / len(esperas):.2f} min · máxima: {max(esperas)} min")
 
 with tab2:
     st.header("Operaciones de la Red")
