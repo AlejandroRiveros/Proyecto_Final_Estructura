@@ -1,6 +1,6 @@
 # R10
 from motor.estructuras.cola import Cola
-import random
+
 
 def simular_fila(llegadas, frecuencia, capacidad):
     cola_pasajeros = Cola()
@@ -24,6 +24,5 @@ def simular_fila(llegadas, frecuencia, capacidad):
         tiempo_actual += frecuencia
 
     return {
-        "buses_salidos": buses_salidos,
-        "pasajeros_transportados": pasajeros_transportados
+        (buses_salidos, pasajeros_transportados)
     }
