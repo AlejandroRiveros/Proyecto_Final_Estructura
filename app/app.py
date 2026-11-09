@@ -14,7 +14,7 @@ ruta_datos = "datos"
 # sobrevivan entre interacciones. Se carga una sola vez por sesión.
 if os.path.exists(ruta_datos):
     if "app_red" not in st.session_state:
-        st.session_state["app_red"] = Red(ruta_datos)
+        st.session_state["app_red"] = Red()
     red = st.session_state["app_red"]
 else:
     st.error(f"No se encuentra la carpeta de datos en '{ruta_datos}'.")
