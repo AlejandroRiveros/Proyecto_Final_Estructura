@@ -32,8 +32,10 @@ with tab2:
     st.header("Operaciones de la Red (Cierres y Edición)")
     estacion_a_cerrar = st.text_input("Nombre de estación a cerrar:")
     if st.button("Cerrar Estación"):
-        red.cerrar(estacion_a_cerrar.upper())
-        st.success(f"Estación {estacion_a_cerrar.upper()} cerrada con éxito.")
+        if red.cerrar(estacion_id):
+            st.success("Estación cerrada con éxito.")
+        else:
+            st.warning("No se pudo realizar la acción (la estación no existe o el estado no es válido).")
     
     if st.button("Deshacer última acción"):
         red.deshacer()
