@@ -1,7 +1,25 @@
-from motor.fila import simular_fila 
+import os
+import sys
+import unittest
 
-def test_simular_fila_tupla():
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, RAIZ)
 
-    resultado = simular_fila(frecuencia=10, llegadas=5)
-    assert isinstance(resultado, tuple), "El resultado de la fila debe ser una tupla."
-    assert len(resultado) == 2, "La tupla debe contener exactamente dos elementos."
+from motor import simular_fila
+
+
+class TestR10(unittest.TestCase):
+    def test_devuelve_tupla_de_dos(self):
+        resultado = simular_fila(llegadas=5, frecuencia=10, capacidad=3)
+        self.assertIsInstance(resultado, tuple)
+        self.assertEqual(len(resultado), 2)
+
+    def test_buses_y_pasajeros(self):
+        # 5 pasajeros con cupo 3: sale un bus lleno y otro con 2.
+        self.assertEqual(simular_fila(5, 10, 3), (2, 5))
+        self.assertEqual(simular_fila(6, 10, 3), (2, 6))
+        self.assertEqual(simular_fila(0, 10, 3), (0, 0))
+
+
+if __name__ == "__main__":
+    unittest.main()

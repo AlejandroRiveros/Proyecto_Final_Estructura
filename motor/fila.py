@@ -23,6 +23,4 @@ def simular_fila(llegadas, frecuencia, capacidad):
         buses_salidos += 1
         tiempo_actual += frecuencia
 
-    return {
-        (buses_salidos, pasajeros_transportados)
-    }
+    return (buses_salidos, pasajeros_transportados)
