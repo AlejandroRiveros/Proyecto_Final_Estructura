@@ -37,11 +37,22 @@ with tab1:
             st.write(f"Estado de la estación: {estado}")
 
     st.subheader("Autocompletar (R2)")
-    prefijo_r2 = st.text_input("Prefijo para autocompletar:")
-    k_r2 = st.number_input("Cuántas sugerencias (k):", min_value=1, value=5, step=1)
-    if prefijo_r2:
-        res_r2 = red.autocompletar(nombre(prefijo_r2), int(k_r2))
-        st.write(res_r2)
+
+    # Fragmento: mientras se escribe solo se vuelve a correr este bloque, no toda la página.
+    @st.fragment
+    def autocompletar_en_vivo():
+        k_r2 = st.number_input("Cuántas sugerencias (k):", min_value=1, value=5, step=1)
+        # live: la búsqueda corre sola tras una pausa corta al escribir, sin Enter.
+        prefijo_r2 = st.text_input("Empieza a escribir una estación:", type="search",
+                                   live="150ms", placeholder="Ej. port")
+        if prefijo_r2:
+            sugerencias = red.autocompletar(nombre(prefijo_r2), int(k_r2))
+            if sugerencias:
+                st.markdown("\n".join("- " + s for s in sugerencias))
+            else:
+                st.caption("Ninguna estación abierta empieza así.")
+
+    autocompletar_en_vivo()
 
     st.subheader("Rango (R3)")
     inf_r3 = st.text_input("Estación inferior:")
