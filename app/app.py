@@ -34,7 +34,30 @@ def elegir_estacion(nombre_estacion):
 
 
 def fijar(clave, valor):
-    st.session_state[clave] = valor
+    # Origen o destino del viaje: se escribe en su campo de texto, como si el
+    # usuario lo hubiera tecleado.
+    st.session_state["txt_" + clave] = valor
+
+
+def campo_estacion(clave, etiqueta):
+    """Campo con sugerencias en vivo (R2). Devuelve la estación si el texto es
+    exactamente una estación de la red (R1), o None."""
+    texto = st.text_input(etiqueta, type="search", live="150ms", key="txt_" + clave,
+                          placeholder="Escribe y elige")
+    if not texto:
+        return None
+    exacto = nombre(texto)
+    if red.estado(exacto) is not None:
+        return exacto
+    sugerencias = red.autocompletar(exacto, K_SUGERENCIAS)
+    if not sugerencias:
+        st.caption("Ninguna estación abierta empieza así.")
+    for i in range(0, len(sugerencias), 2):
+        columnas = st.columns(2)
+        for col, sug in zip(columnas, sugerencias[i:i + 2]):
+            col.button(sug, key=clave + "_sug_" + sug, on_click=fijar, args=(clave, sug),
+                       use_container_width=True)
+    return None
 
 
 def hora_actual():
@@ -55,7 +78,8 @@ with tab1:
     if texto:
         sugerencias = red.autocompletar(nombre(texto), K_SUGERENCIAS)
         if sugerencias:
-            st.caption(f"{len(sugerencias)} estaciones abiertas empiezan así (R2), en orden alfabético")
+            st.caption(("1 estación abierta empieza así (R2)" if len(sugerencias) == 1 else
+                        f"{len(sugerencias)} estaciones abiertas empiezan así (R2), en orden alfabético"))
             for i in range(0, len(sugerencias), POR_FILA):
                 columnas = st.columns(POR_FILA)
                 for col, sug in zip(columnas, sugerencias[i:i + POR_FILA]):
@@ -98,15 +122,19 @@ with tab1:
 
     st.divider()
     st.header("Planear un viaje (R5)")
-    origen = st.session_state.get("origen")
-    destino = st.session_state.get("destino")
     v1, v2 = st.columns(2)
-    v1.metric("Origen", origen or "—")
-    v2.metric("Destino", destino or "—")
-    st.caption("Busca una estación arriba y usa los botones de origen y destino.")
+    with v1:
+        origen = campo_estacion("origen", "Origen:")
+    with v2:
+        destino = campo_estacion("destino", "Destino:")
     if origen and destino:
         tramos = red.viaje(origen, destino)
-        if tramos is None:
+        cerradas = [e for e in (origen, destino) if red.estado(e) == "cerrada"]
+        if cerradas:
+            st.warning(f"{' y '.join(cerradas)} está cerrada: nadie sube ni baja ahí (R8).")
+        elif origen == destino:
+            st.info("Origen y destino son la misma estación.")
+        elif tramos is None:
             st.warning("No hay viaje directo ni con un solo transbordo entre esas estaciones.")
         else:
             for n, (ruta, sube, baja) in enumerate(tramos, 1):
