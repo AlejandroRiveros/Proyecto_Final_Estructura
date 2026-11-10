@@ -22,8 +22,11 @@ def nombre(texto):
     return texto.strip().upper()
 
 
-# R2: cuántas sugerencias muestra el buscador (la k la fija la app, no el usuario).
-K_SUGERENCIAS = 5
+# R2 sin límite práctico: el buscador muestra todas las estaciones abiertas que
+# empiezan por el texto. autocompletar se detiene sola al acabarse el prefijo.
+K_SUGERENCIAS = 10**9
+# Botones de sugerencias por fila.
+POR_FILA = 4
 
 
 def elegir_estacion(nombre_estacion):
@@ -52,11 +55,12 @@ with tab1:
     if texto:
         sugerencias = red.autocompletar(nombre(texto), K_SUGERENCIAS)
         if sugerencias:
-            st.caption("Sugerencias (R2): estaciones abiertas que empiezan así, en orden alfabético")
-            columnas = st.columns(len(sugerencias))
-            for col, sug in zip(columnas, sugerencias):
-                col.button(sug, key="sug_" + sug, on_click=elegir_estacion, args=(sug,),
-                           use_container_width=True)
+            st.caption(f"{len(sugerencias)} estaciones abiertas empiezan así (R2), en orden alfabético")
+            for i in range(0, len(sugerencias), POR_FILA):
+                columnas = st.columns(POR_FILA)
+                for col, sug in zip(columnas, sugerencias[i:i + POR_FILA]):
+                    col.button(sug, key="sug_" + sug, on_click=elegir_estacion, args=(sug,),
+                               use_container_width=True)
         else:
             st.caption("Ninguna estación abierta empieza así (R2).")
         st.button(f"Consultar «{nombre(texto)}» exacto (R1)", on_click=elegir_estacion,
