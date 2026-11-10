@@ -78,3 +78,24 @@ class TestR7Publico(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRutasDe(unittest.TestCase):
+    """rutas_de: apoyo para la ficha de la app (no es parte del contrato)."""
+
+    def setUp(self):
+        self.red = Red(os.path.join(RAIZ, "datos"))
+
+    def test_coincide_con_los_recorridos(self):
+        todas = sorted(self.red._rutas.claves())
+        for e in ["CALLE 26", "PORTAL 80", "RICAURTE"]:
+            esperado = [r for r in todas if e in self.red.recorrido(r)]
+            self.assertEqual(self.red.rutas_de(e), esperado, e)
+
+    def test_sigue_las_ediciones_y_no_existe(self):
+        self.assertIn("1-1", self.red.rutas_de("RECINTO FERIAL"))
+        self.red.quitar_parada("1-1", "RECINTO FERIAL")
+        self.assertNotIn("1-1", self.red.rutas_de("RECINTO FERIAL"))
+        self.red.deshacer()
+        self.assertIn("1-1", self.red.rutas_de("RECINTO FERIAL"))
+        self.assertEqual(self.red.rutas_de("NO EXISTE"), [])

@@ -388,6 +388,16 @@ class Red:
             return None
         return horas[i]
 
+    # Apoyo para la app (no es parte del contrato)
+    def rutas_de(self, estacion):
+        """Rutas que hoy pasan por la estación, en orden alfabético. [] si no existe.
+
+        Usa el índice estación -> rutas de R5, que R7 mantiene al agregar o
+        quitar paradas. Incluye las rutas de una estación cerrada (pasan por ahí,
+        pero nadie sube ni baja). O(1) promedio + O(r log r), r = rutas de la estación.
+        """
+        return merge_sort(self._rutas_de(estacion))
+
     # R5
     def viaje(self, origen, destino):
         """Viaje directo o con un transbordo que pasa por menos paradas.
