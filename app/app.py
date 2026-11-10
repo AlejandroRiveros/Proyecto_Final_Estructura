@@ -22,6 +22,10 @@ def nombre(texto):
     return texto.strip().upper()
 
 
+# R2: cuántas sugerencias muestra el buscador (la k la fija la app, no el usuario).
+K_SUGERENCIAS = 5
+
+
 def elegir_estacion(nombre_estacion):
     st.session_state["estacion"] = nombre_estacion
 
@@ -43,11 +47,10 @@ with tab1:
 
     # Un solo buscador: R2 sugiere mientras se escribe y R1 consulta el texto exacto
     # (una estación cerrada no aparece en las sugerencias, pero sí en la consulta exacta).
-    k_r2 = st.number_input("Cuántas sugerencias mostrar (k, R2):", min_value=1, value=5, step=1)
     texto = st.text_input("Escribe el nombre de una estación:", type="search",
                           live="150ms", placeholder="Ej. CAL", key="buscador")
     if texto:
-        sugerencias = red.autocompletar(nombre(texto), int(k_r2))
+        sugerencias = red.autocompletar(nombre(texto), K_SUGERENCIAS)
         if sugerencias:
             st.caption("Sugerencias (R2): estaciones abiertas que empiezan así, en orden alfabético")
             columnas = st.columns(len(sugerencias))
