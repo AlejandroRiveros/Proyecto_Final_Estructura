@@ -45,7 +45,7 @@ Están explicadas al inicio de `convertir.py`. En resumen:
 2. Estación = nombre de la parada sin el vagón ni la plataforma, en mayúsculas y sin tildes ("Av. Jiménez A - 2 ó 5" → "AV. JIMENEZ").
 3. Cada ruta del GTFS se separa en variantes, una por cada secuencia distinta de estaciones con al menos 3 viajes. Las que son solo un tramo de otra, se saltan paradas con muchos menos viajes, o son la misma vuelta empezando en otra parada, se juntan con la variante que las contiene.
 4. Las variantes se numeran por viajes, de más a menos ("B74-1", "B74-2"…). Una ruta con una sola variante queda sin sufijo ("B52").
-5. Una fila de horarios por cada parada de cada viaje, con la hora en "HH:MM". No se quitan repetidas, porque el motor las cuenta como buses en R6.
+5. Una fila de horarios por cada parada de cada viaje, con la hora en "HH:MM". No se quitan repetidas, porque el motor las cuenta como buses en R6. Las horas extendidas del GTFS se conservan: 25:10:00 queda como 25:10 (la 01:10 del día siguiente dentro del mismo día de servicio; ver "Horas" en el README principal). El GTFS de 2021-07-14 no trae ninguna.
 
 ## Resultado comparado con los CSV del profesor
 

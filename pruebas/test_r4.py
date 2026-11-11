@@ -75,3 +75,21 @@ class TestR4ConCambios(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestHorasExtendidas(unittest.TestCase):
+    """Horas del GTFS como 25:10 (README, "Horas"): se ordenan después de 23:59."""
+
+    def test_proximo_bus_despues_de_medianoche(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as carpeta:
+            with open(os.path.join(carpeta, "estaciones.csv"), "w", encoding="utf-8") as f:
+                f.write("nombre\nA\nB\n")
+            with open(os.path.join(carpeta, "rutas.csv"), "w", encoding="utf-8") as f:
+                f.write("ruta,orden,estacion\nR,1,A\nR,2,B\n")
+            with open(os.path.join(carpeta, "horarios.csv"), "w", encoding="utf-8") as f:
+                f.write("ruta,estacion,hora\nR,A,23:40\nR,A,25:10\nR,A,05:00\n")
+            red = Red(carpeta)
+        self.assertEqual(red.proximo_bus("A", "R", "23:50"), "25:10")
+        self.assertEqual(red.proximo_bus("A", "R", "23:30"), "23:40")
+        self.assertIsNone(red.proximo_bus("A", "R", "25:11"))

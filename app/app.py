@@ -78,6 +78,14 @@ def campo_estacion(clave, etiqueta):
     return None
 
 
+def hora_legible(hora):
+    # Horas extendidas del GTFS (ver README, "Horas"): "25:10" es la 01:10 del día siguiente.
+    h, m = hora.split(":")
+    if int(h) >= 24:
+        return f"{hora} ({int(h) - 24:02d}:{m} del día siguiente)"
+    return hora
+
+
 def hora_actual():
     # Hora de Bogotá (UTC-5, sin horario de verano) para no depender de tzdata en Windows.
     return datetime.now(timezone(timedelta(hours=-5))).time().replace(second=0, microsecond=0)
@@ -145,7 +153,7 @@ with tab1:
                                 "hoy este bus ya no se encuentra disponible.")
                     else:
                         st.success(f"Ruta {res_r4['ruta']} desde las {res_r4['hora']}: "
-                                   f"el próximo bus pasa a las {res_r4['bus']}.")
+                                   f"el próximo bus pasa a las {hora_legible(res_r4['bus'])}.")
             b1, b2 = st.columns(2)
             b1.button("Usar como origen del viaje (R5)", on_click=fijar, args=("origen", elegida),
                       use_container_width=True)

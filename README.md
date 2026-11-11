@@ -74,4 +74,11 @@ Al cargar no se supone que el CSV venga ordenado, porque la red de prueba es dis
 
 ### Horas
 
-Los CSV del profesor traen horas entre 00:01 y 23:59 en formato HH:MM con dos dígitos, así que se comparan bien como texto ("07:05" < "13:40") sin convertirlas. El profesor entregó los CSV ya convertidos, por eso no hubo que decidir qué hacer con horas del GTFS como 25:10.
+Las horas van en formato HH:MM con dos dígitos, así que se comparan bien como texto ("07:05" < "13:40") sin convertirlas.
+
+**Horas del GTFS como 25:10 (diapositiva 8).** El conversor conserva las horas extendidas del GTFS: 25:10:00 se guarda como 25:10 y representa la 01:10 del día calendario siguiente, dentro del mismo día de servicio (así lo define la especificación GTFS). Se eligió esto frente a otras dos opciones:
+
+- Restar 24 (25:10 → 01:10): el bus quedaría antes de las 23:59 del mismo día de servicio, y `proximo_bus` a las 23:50 ya no lo encontraría.
+- Descartar esas filas: se perderían buses y cambiaría el ranking de R6.
+
+Conservarlas mantiene el orden correcto como texto ("23:59" < "25:10"), así que R4 consultado a las 23:50 devuelve ese bus, y el bus sigue contando en R6. Lo que no cubre: una consulta a las 00:30 (por ejemplo, desde la app) no encuentra el bus de las 25:10, porque esa hora pertenece al día de servicio anterior. La app muestra una hora extendida como "25:10 (01:10 del día siguiente)". El GTFS del 14 de julio de 2021 no trae ninguna hora después de 23:59, así que hoy la regla no cambia los CSV; queda para cualquier otro GTFS. Si el enunciado detallado fija un máximo de 23:59, hay que ajustar esta decisión.

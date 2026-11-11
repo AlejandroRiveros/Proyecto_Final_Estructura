@@ -35,7 +35,10 @@ Reglas de la conversión (deducidas comparando con los CSV del profesor):
    "B74-1", "B74-2"... Si la ruta tiene una sola variante, queda sin sufijo ("B52").
 7. horarios.csv tiene una fila por cada parada de cada viaje, con la hora de
    salida en "HH:MM" (los segundos se descartan). No se quitan repetidas: el
-   motor las cuenta como buses (R6) y las deduplica solo para R4.
+   motor las cuenta como buses (R6) y las deduplica solo para R4. Las horas
+   extendidas del GTFS se conservan (25:10:00 -> "25:10", la 01:10 del día
+   siguiente dentro del mismo día de servicio): así se ordenan después de las
+   23:59 y siguen contando en R6. El GTFS de 2021-07-14 no trae ninguna.
 """
 
 import argparse
