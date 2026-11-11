@@ -187,12 +187,13 @@ with tab1:
 
     st.subheader("Estaciones en un rango (R3)")
     r1, r2 = st.columns(2)
-    inf_r3 = r1.text_input("Desde:", placeholder="Ej. CALLE 26")
-    sup_r3 = r2.text_input("Hasta:", placeholder="Ej. CALLE 80")
-    if st.button("Listar rango (R3)"):
+    with r1:
+        inf_r3 = campo_estacion("r3_desde", "Desde:")
+    with r2:
+        sup_r3 = campo_estacion("r3_hasta", "Hasta:")
+    if st.button("Listar rango (R3)", disabled=not (inf_r3 and sup_r3)):
         st.session_state["res_r3"] = {
-            "desde": nombre(inf_r3), "hasta": nombre(sup_r3),
-            "estaciones": red.rango(nombre(inf_r3), nombre(sup_r3))}
+            "desde": inf_r3, "hasta": sup_r3, "estaciones": red.rango(inf_r3, sup_r3)}
     res_r3 = st.session_state.get("res_r3")
     if res_r3:
         estaciones_r3 = res_r3["estaciones"]
@@ -296,13 +297,13 @@ with tab2:
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**Quitar una parada**")
-        st.selectbox("Parada a quitar:", paradas_r7, key="op_quitar_" + ruta_r7)
+        st.selectbox("Parada a quitar:", paradas_r7, key="op_quitar_" + ruta_r7, filter_mode=None)
         st.button("Quitar parada (R7)", on_click=op_quitar, disabled=not paradas_r7,
                   use_container_width=True)
     with col2:
         st.markdown("**Agregar una parada**")
         nueva_r7 = campo_estacion("op_nueva", "Estación nueva:")
-        st.selectbox("Después de:", paradas_r7, key="op_despues_" + ruta_r7)
+        st.selectbox("Después de:", paradas_r7, key="op_despues_" + ruta_r7, filter_mode=None)
         st.button("Agregar parada (R7)", on_click=op_agregar,
                   disabled=nueva_r7 is None or not paradas_r7, use_container_width=True)
     mostrar_msg("r7")
