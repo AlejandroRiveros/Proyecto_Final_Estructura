@@ -181,6 +181,18 @@ with tab1:
                 st.write(f"{n}. Toma la ruta **{ruta}** en **{sube}** y bájate en **{baja}**.")
             if len(tramos) == 2:
                 st.caption(f"Transbordo en {tramos[0][2]}.")
+            # R4 sobre el primer tramo: cuándo pasa el bus que hay que tomar al salir.
+            ruta_1, sube_1 = tramos[0][0], tramos[0][1]
+            hora_v = st.time_input("¿A qué hora sales?", value=hora_actual(), step=60,
+                                   key="hora_viaje")
+            hora_v_txt = hora_v.strftime("%H:%M")
+            bus_1 = red.proximo_bus(sube_1, ruta_1, hora_v_txt)
+            if bus_1 is None:
+                st.info(f"Próximo bus (R4): la ruta {ruta_1} en {sube_1} desde las "
+                        f"{hora_v_txt}: hoy este bus ya no se encuentra disponible.")
+            else:
+                st.success(f"Próximo bus (R4): la ruta {ruta_1} pasa por {sube_1} "
+                           f"a las {hora_legible(bus_1)}.")
 
     st.divider()
     st.header("Otras consultas")
