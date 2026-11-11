@@ -5,7 +5,8 @@ from motor import Red, simular_fila
 
 st.set_page_config(page_title="Planeador TransMilenio", layout="wide")
 
-st.title("🚌 Planeador de Viajes TransMilenio - Motor EDA")
+st.title("🚌 Planeador de viajes TransMilenio")
+st.caption("Proyecto final · Estructuras de datos y algoritmos")
 
 ruta_datos = "datos"
 if os.path.exists(ruta_datos):
@@ -27,6 +28,20 @@ def nombre(texto):
 K_SUGERENCIAS = 10**9
 # Botones de sugerencias por fila.
 POR_FILA = 4
+# Con más de estas sugerencias van en un recuadro con scroll propio, para que no
+# empujen la página hacia abajo (en celular cada botón ocupa una fila).
+MAX_SIN_RECUADRO = 8
+ALTO_BOTON, ESPACIO = 40, 16  # px aproximados de un botón y del espacio entre filas
+
+
+def caja_sugerencias(cantidad, filas_visibles):
+    """Recuadro con scroll que deja ver unas `filas_visibles` filas de botones
+    (y media fila más, para que se note que hay más abajo), o un contenedor
+    normal si son pocas sugerencias."""
+    if cantidad <= MAX_SIN_RECUADRO:
+        return st.container()
+    alto = ESPACIO + filas_visibles * (ALTO_BOTON + ESPACIO) + ALTO_BOTON // 2
+    return st.container(height=alto)
 
 
 def elegir_estacion(nombre_estacion):
@@ -47,13 +62,16 @@ def campo_estacion(clave, etiqueta):
     if not texto:
         return None
     exacto = nombre(texto)
-    if red.estado(exacto) is not None:
+    estado = red.estado(exacto)
+    if estado is not None:
+        st.caption(f"✓ {exacto}" + (" (cerrada)" if estado == "cerrada" else ""))
         return exacto
     sugerencias = red.autocompletar(exacto, K_SUGERENCIAS)
     if not sugerencias:
         st.caption("Ninguna estación abierta empieza así.")
+    caja = caja_sugerencias(len(sugerencias), 4)
     for i in range(0, len(sugerencias), 2):
-        columnas = st.columns(2)
+        columnas = caja.columns(2)
         for col, sug in zip(columnas, sugerencias[i:i + 2]):
             col.button(sug, key=clave + "_sug_" + sug, on_click=fijar, args=(clave, sug),
                        use_container_width=True)
@@ -66,7 +84,7 @@ def hora_actual():
 
 
 
-tab1, tab2, tab3 = st.tabs(["🔍 Consultas y Viajes", "⚙️ Operar Red", "📊 Panel de Rendimiento (R11)"])
+tab1, tab2, tab3 = st.tabs(["🔍 Consultas", "⚙️ Operar red", "📊 Rendimiento (R11)"])
 
 with tab1:
     st.header("Buscar una estación")
@@ -80,15 +98,20 @@ with tab1:
         if sugerencias:
             st.caption(("1 estación abierta empieza así (R2)" if len(sugerencias) == 1 else
                         f"{len(sugerencias)} estaciones abiertas empiezan así (R2), en orden alfabético"))
+            caja = caja_sugerencias(len(sugerencias), 3)
             for i in range(0, len(sugerencias), POR_FILA):
-                columnas = st.columns(POR_FILA)
+                columnas = caja.columns(POR_FILA)
                 for col, sug in zip(columnas, sugerencias[i:i + POR_FILA]):
                     col.button(sug, key="sug_" + sug, on_click=elegir_estacion, args=(sug,),
                                use_container_width=True)
         else:
             st.caption("Ninguna estación abierta empieza así (R2).")
-        st.button(f"Consultar «{nombre(texto)}» exacto (R1)", on_click=elegir_estacion,
-                  args=(nombre(texto),))
+        if nombre(texto) in sugerencias:
+            etiqueta_r1 = f"Consultar «{nombre(texto)}» exacto (R1)"
+        else:
+            # Las cerradas no salen en R2, pero R1 sí las encuentra por nombre exacto.
+            etiqueta_r1 = f"¿No aparece? Buscar «{nombre(texto)}» aunque esté cerrada (R1)"
+        st.button(etiqueta_r1, on_click=elegir_estacion, args=(nombre(texto),))
 
     elegida = st.session_state.get("estacion")
     if elegida:
@@ -109,11 +132,20 @@ with tab1:
                 hora_r4 = c2.time_input("Hora", value=hora_actual(), step=60, key="hora_r4")
                 c3.write("")
                 if c3.button("Próximo bus (R4)", use_container_width=True):
-                    bus = red.proximo_bus(elegida, ruta_r4, hora_r4.strftime("%H:%M"))
-                    if bus is None:
-                        st.info("Hoy este bus ya no se encuentra disponible")
+                    # El último resultado queda en session_state para que no se borre
+                    # al tocar otro widget; se guarda con qué estación, ruta y hora se pidió.
+                    hora_txt = hora_r4.strftime("%H:%M")
+                    st.session_state["res_r4"] = {
+                        "estacion": elegida, "ruta": ruta_r4, "hora": hora_txt,
+                        "bus": red.proximo_bus(elegida, ruta_r4, hora_txt)}
+                res_r4 = st.session_state.get("res_r4")
+                if res_r4 and res_r4["estacion"] == elegida:
+                    if res_r4["bus"] is None:
+                        st.info(f"Ruta {res_r4['ruta']} desde las {res_r4['hora']}: "
+                                "hoy este bus ya no se encuentra disponible.")
                     else:
-                        st.success(f"El próximo {ruta_r4} pasa a las {bus}.")
+                        st.success(f"Ruta {res_r4['ruta']} desde las {res_r4['hora']}: "
+                                   f"el próximo bus pasa a las {res_r4['bus']}.")
             b1, b2 = st.columns(2)
             b1.button("Usar como origen del viaje (R5)", on_click=fijar, args=("origen", elegida),
                       use_container_width=True)
@@ -150,82 +182,166 @@ with tab1:
     inf_r3 = r1.text_input("Desde:", placeholder="Ej. CALLE 26")
     sup_r3 = r2.text_input("Hasta:", placeholder="Ej. CALLE 80")
     if st.button("Listar rango (R3)"):
-        st.write(red.rango(nombre(inf_r3), nombre(sup_r3)))
+        st.session_state["res_r3"] = {
+            "desde": nombre(inf_r3), "hasta": nombre(sup_r3),
+            "estaciones": red.rango(nombre(inf_r3), nombre(sup_r3))}
+    res_r3 = st.session_state.get("res_r3")
+    if res_r3:
+        estaciones_r3 = res_r3["estaciones"]
+        if not estaciones_r3:
+            st.info(f"No hay estaciones abiertas entre «{res_r3['desde']}» y «{res_r3['hasta']}».")
+        else:
+            st.caption(f"{len(estaciones_r3)} estaciones abiertas entre «{res_r3['desde']}» "
+                       f"y «{res_r3['hasta']}», en orden alfabético:")
+            # Con muchas estaciones la lista va en una caja con scroll.
+            caja_r3 = st.container(height=300) if len(estaciones_r3) > 10 else st.container()
+            caja_r3.markdown("\n".join(f"{n}. {est}" for n, est in enumerate(estaciones_r3, 1)))
 
     st.subheader("Ranking de estaciones con más buses (R6)")
     k_r6 = st.number_input("Cuántas (k):", min_value=1, value=10, step=1)
     if st.button("Ver ranking (R6)"):
-        for n, est in enumerate(red.ranking(int(k_r6)), 1):
-            st.write(f"{n}. {est}")
+        st.session_state["res_r6"] = {"k": int(k_r6), "ranking": red.ranking(int(k_r6))}
+    res_r6 = st.session_state.get("res_r6")
+    if res_r6:
+        if not res_r6["ranking"]:
+            st.info("No hay estaciones abiertas para el ranking.")
+        else:
+            st.caption(f"Top {res_r6['k']} de estaciones con más buses al día:")
+            st.markdown("\n".join(f"{n}. {est}" for n, est in enumerate(res_r6["ranking"], 1)))
 
 with tab2:
-    st.header("Operaciones de la Red")
+    st.header("Operar la red")
 
-    estacion_id = nombre(st.text_input("Estación:"))
+    import csv
 
+    # Lista de rutas para el selector de R7: se lee una vez del CSV (es la app,
+    # no el motor) y se guarda en la sesión.
+    if "op_rutas" not in st.session_state:
+        with open(os.path.join(ruta_datos, "rutas.csv"), encoding="utf-8", newline="") as f:
+            st.session_state["op_rutas"] = sorted({fila["ruta"] for fila in csv.DictReader(f)})
+
+    def operar(bloque, ok, exito, fallo):
+        # El mensaje se guarda en la sesión para que sobreviva al rerun del clic.
+        st.session_state["msg_operar"] = (bloque, ok, exito if ok else fallo)
+
+    def mostrar_msg(bloque):
+        msg = st.session_state.get("msg_operar")
+        if msg is not None and msg[0] == bloque:
+            del st.session_state["msg_operar"]
+            if msg[1]:
+                st.success(msg[2])
+            else:
+                st.warning(msg[2])
+
+    def op_texto(clave):
+        return nombre(st.session_state.get("txt_" + clave) or "")
+
+    def op_cerrar():
+        est = op_texto("op_estacion")
+        operar("r8", red.cerrar(est), f"Estación {est} cerrada.",
+               f"No se pudo cerrar {est or 'la estación'}: no existe o ya está cerrada.")
+
+    def op_reabrir():
+        est = op_texto("op_estacion")
+        operar("r8", red.reabrir(est), f"Estación {est} reabierta.",
+               f"No se pudo reabrir {est or 'la estación'}: no existe o ya está abierta.")
+
+    def op_quitar():
+        ruta = st.session_state["op_ruta"]
+        parada = st.session_state.get("op_quitar_" + ruta)
+        operar("r7", red.quitar_parada(ruta, parada), f"{parada} quitada de la ruta {ruta}.",
+               f"No se pudo quitar la parada de la ruta {ruta}.")
+
+    def op_agregar():
+        ruta = st.session_state["op_ruta"]
+        nueva = op_texto("op_nueva")
+        despues = st.session_state.get("op_despues_" + ruta)
+        operar("r7", red.agregar_parada(ruta, nueva, despues),
+               f"{nueva} agregada a la ruta {ruta} después de {despues}.",
+               f"No se pudo agregar {nueva or 'la estación'} a la ruta {ruta}: "
+               "no es una estación de la red o ya está en la ruta.")
+
+    def op_deshacer():
+        operar("r9", red.deshacer(), "Última acción deshecha.", "No hay acciones para deshacer.")
+
+    def op_rehacer():
+        operar("r9", red.rehacer(), "Acción rehecha.", "No hay acciones para rehacer.")
+
+    # --- R8 ---
+    st.subheader("Cerrar o reabrir una estación (R8)")
+    est_r8 = campo_estacion("op_estacion", "Estación:")
+    if est_r8 is not None:
+        st.markdown(f"Estado actual de **{est_r8}**: **{red.estado(est_r8)}**")
+    col1, col2 = st.columns(2)
+    col1.button("Cerrar estación (R8)", on_click=op_cerrar, disabled=est_r8 is None,
+                use_container_width=True)
+    col2.button("Reabrir estación (R8)", on_click=op_reabrir, disabled=est_r8 is None,
+                use_container_width=True)
+    mostrar_msg("r8")
+
+    st.divider()
+
+    # --- R7 ---
+    st.subheader("Editar una ruta (R7)")
+    ruta_r7 = st.selectbox("Ruta:", st.session_state["op_rutas"], key="op_ruta")
+    paradas_r7 = red.recorrido(ruta_r7)
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Cerrar Estación"):
-            if red.cerrar(estacion_id):
-                st.success("Estación cerrada con éxito.")
-            else:
-                st.warning("No se pudo realizar la acción (la estación no existe o el estado no es válido).")
-
-        if st.button("Reabrir Estación (R8)"):
-            if red.reabrir(estacion_id):
-                st.success("Estación reabierta con éxito.")
-            else:
-                st.warning("No se pudo realizar la acción.")
-
-        ruta_r7 = nombre(st.text_input("Ruta para agregar/quitar parada:"))
-        despues_r7 = nombre(st.text_input("Agregarla después de la estación:"))
-        if st.button("Agregar Parada (R7)"):
-            if red.agregar_parada(ruta_r7, estacion_id, despues_r7):
-                st.success("Parada agregada con éxito.")
-            else:
-                st.warning("No se pudo realizar la acción.")
-
+        st.markdown("**Quitar una parada**")
+        st.selectbox("Parada a quitar:", paradas_r7, key="op_quitar_" + ruta_r7)
+        st.button("Quitar parada (R7)", on_click=op_quitar, disabled=not paradas_r7,
+                  use_container_width=True)
     with col2:
-        if st.button("Quitar Parada (R7)"):
-            if red.quitar_parada(ruta_r7, estacion_id):
-                st.success("Parada quitada con éxito.")
-            else:
-                st.warning("No se pudo realizar la acción.")
+        st.markdown("**Agregar una parada**")
+        nueva_r7 = campo_estacion("op_nueva", "Estación nueva:")
+        st.selectbox("Después de:", paradas_r7, key="op_despues_" + ruta_r7)
+        st.button("Agregar parada (R7)", on_click=op_agregar,
+                  disabled=nueva_r7 is None or not paradas_r7, use_container_width=True)
+    mostrar_msg("r7")
 
-        if st.button("Deshacer última acción"):
-            if red.deshacer():
-                st.success("Acción deshecha con éxito.")
-            else:
-                st.warning("No hay acciones para deshacer.")
+    al_reves_r7 = st.checkbox("Ver de vuelta (al revés)", key="op_al_reves")
+    recorrido_r7 = red.recorrido(ruta_r7, al_reves=al_reves_r7)
+    sentido = "de vuelta" if al_reves_r7 else "de ida"
+    st.markdown(f"**Recorrido {sentido} de {ruta_r7}** ({len(recorrido_r7)} paradas):")
+    if recorrido_r7:
+        st.info(" → ".join(recorrido_r7))
+    else:
+        st.caption("La ruta no tiene paradas.")
 
-        if st.button("Rehacer acción (R9)"):
-            if red.rehacer():
-                st.success("Acción rehecha con éxito.")
-            else:
-                st.warning("No hay acciones para rehacer.")
+    st.divider()
 
-    st.subheader("Recorrido (R7)")
-    al_reves_r7 = st.checkbox("De vuelta (al revés)")
-    if st.button("Obtener Recorrido"):
-        res_r7 = red.recorrido(ruta_r7, al_reves=al_reves_r7)
-        st.write(res_r7)
+    # --- R9 ---
+    st.subheader("Historial (R9)")
+    col1, col2 = st.columns(2)
+    col1.button("Deshacer (R9)", on_click=op_deshacer, use_container_width=True)
+    col2.button("Rehacer (R9)", on_click=op_rehacer, use_container_width=True)
+    mostrar_msg("r9")
 
     st.divider()
     st.subheader("Simular fila de abordaje (R10)")
     lleg_r10 = st.text_input("Minuto de llegada de cada pasajero (separados por coma):", value="0, 1, 1, 4")
     freq_r10 = st.number_input("Frecuencia (minutos entre buses, el primero sale en el minuto 0):", min_value=1, value=2)
     cap_r10 = st.number_input("Capacidad de cada bus:", min_value=1, value=1)
-    if st.button("Simular Fila"):
+    if st.button("Simular fila (R10)"):
         try:
             llegadas_r10 = [int(x) for x in lleg_r10.replace(" ", "").split(",") if x != ""]
         except ValueError:
+            llegadas_r10 = None
+        st.session_state["res_r10"] = {
+            "frecuencia": int(freq_r10), "capacidad": int(cap_r10),
+            "esperas": (None if llegadas_r10 is None else
+                        simular_fila(llegadas_r10, int(freq_r10), int(cap_r10)))}
+    res_r10 = st.session_state.get("res_r10")
+    if res_r10:
+        esperas = res_r10["esperas"]
+        if esperas is None:
             st.warning("Escribe minutos enteros separados por coma, por ejemplo 0, 1, 1, 4.")
-            st.stop()
-        esperas = simular_fila(llegadas_r10, int(freq_r10), int(cap_r10))
-        if not esperas:
+        elif not esperas:
             st.info("No hay pasajeros.")
         else:
-            st.write("Espera de cada pasajero, en orden de llegada (minutos):", esperas)
+            st.caption(f"Bus cada {res_r10['frecuencia']} min con capacidad {res_r10['capacidad']}.")
+            st.write("Espera de cada pasajero, en orden de llegada (minutos):",
+                     ", ".join(str(e) for e in esperas))
             st.write(f"Espera promedio: {sum(esperas) / len(esperas):.2f} min · máxima: {max(esperas)} min")
 
 
