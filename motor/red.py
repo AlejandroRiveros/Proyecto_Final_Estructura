@@ -410,12 +410,23 @@ class Red:
         cerrada intermedia no corta la ruta, solo no se puede usar ahí.
         O(R × L) con R = rutas por estación y L = paradas por ruta (máximos).
         """
-        mejor = self._buscar_viaje(origen, destino)
+        return self._tramos_r5(self._buscar_viaje(origen, destino), origen, destino)
+
+    def _tramos_r5(self, mejor, origen, destino):
         if mejor is None:
             return None
         if mejor[2] is None:
             return [(mejor[1], origen, destino)]
         return [(mejor[1], origen, mejor[2]), (mejor[3], mejor[2], destino)]
+
+    # Apoyo para la app (no es parte del contrato): R5 con su total de paradas.
+    def viaje_y_paradas(self, origen, destino):
+        """(tramos, paradas) del viaje de R5, o None. Las paradas ya las cuenta
+        _buscar_viaje, así que la app no tiene que recorrer las rutas. O(R × L)."""
+        mejor = self._buscar_viaje(origen, destino)
+        if mejor is None:
+            return None
+        return (self._tramos_r5(mejor, origen, destino), mejor[0])
 
     def _abierta(self, nombre):
         estacion = self._estaciones.obtener(nombre)
@@ -470,8 +481,8 @@ class Red:
         """Viaje con cualquier número de transbordos: el de menos tramos y,
         entre los que tienen los mismos tramos, el de menos paradas.
 
-        Devuelve una lista de tramos (ruta, sube_en, baja_en), como viaje(),
-        o None si no hay forma de llegar. Mismas reglas de R5: origen, destino
+        Devuelve (tramos, paradas): tramos es una lista (ruta, sube_en, baja_en)
+        como la de viaje() y paradas su total; None si no hay forma de llegar. Mismas reglas de R5: origen, destino
         y transbordos abiertos; una cerrada intermedia no corta la ruta.
 
         BFS por niveles sobre el grafo implícito de la red (sesión 10): cada
@@ -518,12 +529,13 @@ class Red:
                     paradas += 1
         if tramos_destino is None:
             return None
-        return self._reconstruir(llegada, origen, destino)
+        return (self._reconstruir(llegada, origen, destino), llegada.obtener(destino)[1])
 
     # Apoyo para la app (no es parte del contrato): alternativa con menos paradas.
     def viaje_menos_paradas(self, origen, destino):
         """Viaje con el menor número de paradas, sin límite de transbordos; en
-        empate, el de menos tramos. Misma salida y reglas que viaje_con_transbordos.
+        empate, el de menos tramos. Misma salida (tramos, paradas) y reglas que
+        viaje_con_transbordos.
 
         Dijkstra (sesión 11) sobre el mismo grafo implícito: cada arista es un
         tramo completo y su costo es (paradas del tramo, 1 tramo). Se compara
@@ -564,7 +576,7 @@ class Red:
                     paradas += 1
         if not cerradas.contiene(destino):
             return None
-        return self._reconstruir(mejor, origen, destino)
+        return (self._reconstruir(mejor, origen, destino), mejor.obtener(destino)[0][0])
 
     def _reconstruir(self, llegada, origen, destino):
         """Tramos (ruta, sube_en, baja_en) desde el origen, a partir de lo que

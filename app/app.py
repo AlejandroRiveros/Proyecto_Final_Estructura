@@ -121,22 +121,13 @@ def menu(clave, opciones, por_fila):
     return None
 
 
-def paradas_de(tramos):
-    # Solo para mostrar: la app puede usar .index sobre el recorrido.
-    total = 0
-    for ruta, sube, baja in tramos:
-        recorrido = red.recorrido(ruta)
-        total += recorrido.index(baja) - recorrido.index(sube)
-    return total
-
-
-def mostrar_tramos(tramos, hora_txt):
-    """Pasos del viaje, cuántas paradas y transbordos, y con R4 cuándo pasa
-    el bus del primer tramo."""
+def mostrar_tramos(tramos, paradas, hora_txt):
+    """Pasos del viaje, cuántas paradas (las cuenta el motor) y transbordos, y
+    con R4 cuándo pasa el bus del primer tramo."""
     for n, (ruta, sube, baja) in enumerate(tramos, 1):
         st.write(f"{n}. Toma la ruta **{ruta}** en **{sube}** y bájate en **{baja}**.")
     cambios = [baja for _, _, baja in tramos[:-1]]
-    resumen = f"{paradas_de(tramos)} paradas · "
+    resumen = f"{paradas} paradas · "
     if not cambios:
         resumen += "sin transbordos"
     else:
@@ -244,15 +235,16 @@ with tab1:
         with v2:
             destino = campo_estacion("destino", "Destino:")
         if origen and destino:
-            tramos = red.viaje(origen, destino)
+            # Una sola búsqueda por opción: el motor entrega tramos y total de paradas.
+            r5 = red.viaje_y_paradas(origen, destino)
             cerradas = [e for e in (origen, destino) if red.estado(e) == "cerrada"]
             if cerradas:
                 st.warning(f"{' y '.join(cerradas)} está cerrada: nadie sube ni baja ahí (R8).")
             elif origen == destino:
                 st.info("Origen y destino son la misma estación.")
             else:
-                principal = tramos
-                if tramos is None:
+                principal = r5
+                if r5 is None:
                     st.warning("No hay viaje directo ni con un solo transbordo entre esas "
                                "estaciones (R5).")
                     # Búsqueda aparte (no es R5). Se guarda solo qué par se pidió; los
@@ -270,20 +262,20 @@ with tab1:
                     # Alternativa: menos paradas sin límite de transbordos (Dijkstra).
                     # Solo se muestra si de verdad ahorra paradas.
                     alterna = red.viaje_menos_paradas(origen, destino)
-                    if alterna is not None and paradas_de(alterna) >= paradas_de(principal):
+                    if alterna is not None and alterna[1] >= principal[1]:
                         alterna = None
-                    if tramos is None:
+                    if r5 is None:
                         st.markdown("**Con menos transbordos (BFS)**")
                     elif alterna is not None:
                         st.markdown("**Con hasta un transbordo (R5)**")
-                    mostrar_tramos(principal, hora_txt)
+                    mostrar_tramos(principal[0], principal[1], hora_txt)
                     if alterna is not None:
-                        ahorro = paradas_de(principal) - paradas_de(alterna)
-                        extra = len(alterna) - len(principal)
+                        ahorro = principal[1] - alterna[1]
+                        extra = len(alterna[0]) - len(principal[0])
                         st.markdown(f"**Alternativa con menos paradas (Dijkstra):** {ahorro} "
                                     f"parada{'s' if ahorro > 1 else ''} menos, {extra} "
                                     f"transbordo{'s' if extra > 1 else ''} más.")
-                        mostrar_tramos(alterna, hora_txt)
+                        mostrar_tramos(alterna[0], alterna[1], hora_txt)
 
     elif vista == "rango":
         st.header("Estaciones en un rango (R3)")
