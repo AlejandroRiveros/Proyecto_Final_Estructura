@@ -152,10 +152,13 @@ class TestR5ContraFuerzaBruta(unittest.TestCase):
                 self.assertEqual(tramos[-1][2], d)
 
 
-def bruto_transbordos(red, origen, destino):
+def bruto_transbordos(red, origen, destino, paradas_primero=False):
     """(tramos, paradas) mínimos con cualquier número de transbordos.
     Dijkstra con heapq sobre estaciones (fuera del motor se permite);
-    cada salto es un tramo completo, con costo (1, paradas del tramo)."""
+    cada salto es un tramo completo, con costo (1, paradas del tramo).
+    Con paradas_primero se minimizan (paradas, tramos) y se devuelve así."""
+    if paradas_primero:
+        return _bruto_paradas(red, origen, destino)
     import heapq
     if origen == destino or red.estado(origen) != "abierta" or red.estado(destino) != "abierta":
         return None
@@ -177,6 +180,34 @@ def bruto_transbordos(red, origen, destino):
                 if red.estado(y) != "abierta":
                     continue
                 c = (t + 1, p + j - i)
+                if y not in mejor or c < mejor[y]:
+                    mejor[y] = c
+                    heapq.heappush(cola, (c[0], c[1], y))
+    return None
+
+
+def _bruto_paradas(red, origen, destino):
+    import heapq
+    if origen == destino or red.estado(origen) != "abierta" or red.estado(destino) != "abierta":
+        return None
+    rutas = [red.recorrido(n) for n in red._rutas.claves()]
+    mejor = {origen: (0, 0)}
+    cola = [(0, 0, origen)]
+    while cola:
+        p, t, x = heapq.heappop(cola)
+        if (p, t) > mejor[x]:
+            continue
+        if x == destino:
+            return (p, t)
+        for paradas in rutas:
+            if x not in paradas:
+                continue
+            i = paradas.index(x)
+            for j in range(i + 1, len(paradas)):
+                y = paradas[j]
+                if red.estado(y) != "abierta":
+                    continue
+                c = (p + j - i, t + 1)
                 if y not in mejor or c < mejor[y]:
                     mejor[y] = c
                     heapq.heappush(cola, (c[0], c[1], y))
@@ -259,6 +290,69 @@ class TestViajeConTransbordos(unittest.TestCase):
             else:
                 self.revisar(red, o, d, tramos)
                 self.assertEqual((len(tramos), paradas_de(red, tramos)), esperado, (o, d))
+
+
+class TestMonticulo(unittest.TestCase):
+    def test_saca_en_orden(self):
+        from motor.estructuras.monticulo import MonticuloMin
+        azar = random.Random(5)
+        for n in (0, 1, 2, 7, 100, 1000):
+            valores = [(azar.randrange(50), azar.randrange(50)) for _ in range(n)]
+            m = MonticuloMin()
+            for v in valores:
+                m.meter(v, str(v))
+            salida = []
+            while not m.esta_vacio():
+                salida.append(m.sacar_minimo()[0])
+            self.assertEqual(salida, sorted(valores))
+            self.assertIsNone(m.sacar_minimo())
+
+
+class TestViajeMenosParadas(unittest.TestCase):
+    """Alternativa con menos paradas (Dijkstra con montículo propio)."""
+
+    def test_mas_transbordos_si_ahorra_paradas(self):
+        # Directo de 6 paradas contra 2 tramos de 2: aquí gana el de 2 tramos.
+        red = red_de({"L": ["A", "B", "C", "D", "E", "F", "Z"],
+                      "X": ["A", "M"], "Y": ["M", "Z"]})
+        self.assertEqual(red.viaje_menos_paradas("A", "Z"), [("X", "A", "M"), ("Y", "M", "Z")])
+        self.assertEqual(red.viaje_con_transbordos("A", "Z"), [("L", "A", "Z")])
+
+    def test_empate_de_paradas_menos_tramos(self):
+        red = red_de({"L": ["A", "B", "Z"], "X": ["A", "B"], "Y": ["B", "Z"]})
+        self.assertEqual(red.viaje_menos_paradas("A", "Z"), [("L", "A", "Z")])
+
+    def test_cerradas_y_bordes(self):
+        red = red_de({"R1": ["A", "B"], "R2": ["B", "C"], "R3": ["C", "D"]})
+        self.assertEqual(len(red.viaje_menos_paradas("A", "D")), 3)
+        red.cerrar("C")
+        self.assertIsNone(red.viaje_menos_paradas("A", "D"))
+        red.deshacer()
+        self.assertIsNone(red.viaje_menos_paradas("A", "A"))
+        self.assertIsNone(red.viaje_menos_paradas("D", "A"))
+        self.assertIsNone(red.viaje_menos_paradas("A", "NO EXISTE"))
+
+    def test_contra_dijkstra_con_heapq(self):
+        red = Red(os.path.join(RAIZ, "datos"))
+        nombres = red.rango("", "\uffff")
+        azar = random.Random(13)
+        revisar = TestViajeConTransbordos.revisar
+        for paso in range(200):
+            if paso == 100:
+                for e in azar.sample(nombres, 15):
+                    red.cerrar(e)
+            o, d = azar.sample(nombres, 2)
+            tramos = red.viaje_menos_paradas(o, d)
+            esperado = bruto_transbordos(red, o, d, paradas_primero=True)
+            if esperado is None:
+                self.assertIsNone(tramos, (o, d))
+            else:
+                revisar(self, red, o, d, tramos)
+                self.assertEqual((paradas_de(red, tramos), len(tramos)), esperado, (o, d))
+                # Nunca tiene más paradas que R5 ni que la búsqueda por tramos.
+                for otro in (red.viaje(o, d), red.viaje_con_transbordos(o, d)):
+                    if otro is not None:
+                        self.assertLessEqual(paradas_de(red, tramos), paradas_de(red, otro))
 
 
 if __name__ == "__main__":

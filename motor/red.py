@@ -2,6 +2,7 @@ import csv
 
 from motor.estructuras import ListaDoble, Pila, TablaHash, merge_sort, esta_ordenado, primer_mayor_o_igual
 from motor.estructuras.cola import Cola
+from motor.estructuras.monticulo import MonticuloMin
 
 # Respuestas de estado(). Si el enunciado pide otro formato, solo se cambian aquí.
 ABIERTA = "abierta"
@@ -517,11 +518,62 @@ class Red:
                     paradas += 1
         if tramos_destino is None:
             return None
-        # Se reconstruye desde el destino hacia atrás y se voltea a mano.
+        return self._reconstruir(llegada, origen, destino)
+
+    # Apoyo para la app (no es parte del contrato): alternativa con menos paradas.
+    def viaje_menos_paradas(self, origen, destino):
+        """Viaje con el menor número de paradas, sin límite de transbordos; en
+        empate, el de menos tramos. Misma salida y reglas que viaje_con_transbordos.
+
+        Dijkstra (sesión 11) sobre el mismo grafo implícito: cada arista es un
+        tramo completo y su costo es (paradas del tramo, 1 tramo). Se compara
+        como tupla, así que primero cuentan las paradas y luego los tramos.
+        Cola de prioridad: MonticuloMin propio. Una entrada vieja no se borra
+        del montículo: se deja y se ignora al salir si ya hay algo mejor.
+        O(E log E): E = V × r × L tramos posibles (V = estaciones, r = rutas
+        por estación, L = paradas por ruta).
+        """
+        if origen == destino or not self._abierta(origen) or not self._abierta(destino):
+            return None
+        # mejor: estación -> ((paradas, tramos), ruta del último tramo, dónde se subió).
+        mejor = TablaHash()
+        mejor.poner(origen, ((0, 0), None, None))
+        cerradas = TablaHash()  # estaciones con costo definitivo
+        cola = MonticuloMin()
+        cola.meter((0, 0), origen)
+        while not cola.esta_vacio():
+            costo, actual = cola.sacar_minimo()
+            if cerradas.contiene(actual):
+                continue  # entrada vieja: ya salió con un costo mejor
+            cerradas.poner(actual, True)
+            if actual == destino:
+                break
+            paradas_actual, tramos_actual = costo
+            for nombre_ruta in self._rutas_de(actual):
+                nodo = self._rutas.obtener(nombre_ruta).nodos.obtener(actual).siguiente
+                paradas = paradas_actual + 1
+                while nodo is not None:
+                    vecina = nodo.valor
+                    if self._abierta(vecina) and not cerradas.contiene(vecina):
+                        nuevo = (paradas, tramos_actual + 1)
+                        previa = mejor.obtener(vecina)
+                        if previa is None or nuevo < previa[0]:
+                            mejor.poner(vecina, (nuevo, nombre_ruta, actual))
+                            cola.meter(nuevo, vecina)
+                    nodo = nodo.siguiente
+                    paradas += 1
+        if not cerradas.contiene(destino):
+            return None
+        return self._reconstruir(mejor, origen, destino)
+
+    def _reconstruir(self, llegada, origen, destino):
+        """Tramos (ruta, sube_en, baja_en) desde el origen, a partir de lo que
+        guardó cada estación: (..., ruta del último tramo, dónde se subió)."""
         al_reves = []
         estacion = destino
         while estacion != origen:
-            _, _, nombre_ruta, subio = llegada.obtener(estacion)
+            dato = llegada.obtener(estacion)
+            nombre_ruta, subio = dato[-2], dato[-1]
             al_reves.append((nombre_ruta, subio, estacion))
             estacion = subio
         resultado = []

@@ -121,22 +121,33 @@ def menu(clave, opciones, por_fila):
     return None
 
 
-def mostrar_tramos(tramos):
-    """Pasos del viaje y, con R4, cuándo pasa el bus del primer tramo."""
+def paradas_de(tramos):
+    # Solo para mostrar: la app puede usar .index sobre el recorrido.
+    total = 0
+    for ruta, sube, baja in tramos:
+        recorrido = red.recorrido(ruta)
+        total += recorrido.index(baja) - recorrido.index(sube)
+    return total
+
+
+def mostrar_tramos(tramos, hora_txt):
+    """Pasos del viaje, cuántas paradas y transbordos, y con R4 cuándo pasa
+    el bus del primer tramo."""
     for n, (ruta, sube, baja) in enumerate(tramos, 1):
         st.write(f"{n}. Toma la ruta **{ruta}** en **{sube}** y bájate en **{baja}**.")
-    if len(tramos) > 1:
-        cambios = [baja for _, _, baja in tramos[:-1]]
-        st.caption(("Transbordo en " if len(cambios) == 1 else "Transbordos en ")
-                   + ", ".join(cambios[:-1]) + (" y " if len(cambios) > 1 else "")
-                   + cambios[-1] + ".")
+    cambios = [baja for _, _, baja in tramos[:-1]]
+    resumen = f"{paradas_de(tramos)} paradas · "
+    if not cambios:
+        resumen += "sin transbordos"
+    else:
+        resumen += (f"{len(cambios)} transbordo" + ("s" if len(cambios) > 1 else "") + " en "
+                    + ", ".join(cambios[:-1]) + (" y " if len(cambios) > 1 else "") + cambios[-1])
+    st.caption(resumen + ".")
     ruta_1, sube_1 = tramos[0][0], tramos[0][1]
-    hora_v = st.time_input("¿A qué hora sales?", value=hora_actual(), step=60, key="hora_viaje")
-    hora_v_txt = hora_v.strftime("%H:%M")
-    bus_1 = red.proximo_bus(sube_1, ruta_1, hora_v_txt)
+    bus_1 = red.proximo_bus(sube_1, ruta_1, hora_txt)
     if bus_1 is None:
         st.info(f"Próximo bus (R4): la ruta {ruta_1} en {sube_1} desde las "
-                f"{hora_v_txt}: hoy este bus ya no se encuentra disponible.")
+                f"{hora_txt}: hoy este bus ya no se encuentra disponible.")
     else:
         st.success(f"Próximo bus (R4): la ruta {ruta_1} pasa por {sube_1} "
                    f"a las {hora_legible(bus_1)}.")
@@ -239,23 +250,40 @@ with tab1:
                 st.warning(f"{' y '.join(cerradas)} está cerrada: nadie sube ni baja ahí (R8).")
             elif origen == destino:
                 st.info("Origen y destino son la misma estación.")
-            elif tramos is None:
-                st.warning("No hay viaje directo ni con un solo transbordo entre esas estaciones (R5).")
-                # Búsqueda aparte (no es R5): BFS por tramos, sin límite de transbordos.
-                # Se guarda solo qué par se pidió; el viaje se recalcula en cada
-                # vista para que siga los cierres y ediciones de la red.
-                st.button("Buscar con más transbordos", on_click=ir,
-                          args=("mas_transbordos", (origen, destino)))
-                if st.session_state.get("mas_transbordos") == (origen, destino):
-                    largo = red.viaje_con_transbordos(origen, destino)
-                    if largo is None:
-                        st.info("Tampoco hay forma de llegar con más transbordos.")
-                    else:
-                        st.caption("Con más transbordos: primero el de menos tramos y, "
-                                   "entre esos, el de menos paradas.")
-                        mostrar_tramos(largo)
             else:
-                mostrar_tramos(tramos)
+                principal = tramos
+                if tramos is None:
+                    st.warning("No hay viaje directo ni con un solo transbordo entre esas "
+                               "estaciones (R5).")
+                    # Búsqueda aparte (no es R5). Se guarda solo qué par se pidió; los
+                    # viajes se recalculan en cada vista para seguir cierres y ediciones.
+                    st.button("Buscar con más transbordos", on_click=ir,
+                              args=("mas_transbordos", (origen, destino)))
+                    if st.session_state.get("mas_transbordos") == (origen, destino):
+                        principal = red.viaje_con_transbordos(origen, destino)
+                        if principal is None:
+                            st.info("Tampoco hay forma de llegar con más transbordos.")
+                if principal is not None:
+                    hora_v = st.time_input("¿A qué hora sales?", value=hora_actual(), step=60,
+                                           key="hora_viaje")
+                    hora_txt = hora_v.strftime("%H:%M")
+                    # Alternativa: menos paradas sin límite de transbordos (Dijkstra).
+                    # Solo se muestra si de verdad ahorra paradas.
+                    alterna = red.viaje_menos_paradas(origen, destino)
+                    if alterna is not None and paradas_de(alterna) >= paradas_de(principal):
+                        alterna = None
+                    if tramos is None:
+                        st.markdown("**Con menos transbordos (BFS)**")
+                    elif alterna is not None:
+                        st.markdown("**Con hasta un transbordo (R5)**")
+                    mostrar_tramos(principal, hora_txt)
+                    if alterna is not None:
+                        ahorro = paradas_de(principal) - paradas_de(alterna)
+                        extra = len(alterna) - len(principal)
+                        st.markdown(f"**Alternativa con menos paradas (Dijkstra):** {ahorro} "
+                                    f"parada{'s' if ahorro > 1 else ''} menos, {extra} "
+                                    f"transbordo{'s' if extra > 1 else ''} más.")
+                        mostrar_tramos(alterna, hora_txt)
 
     elif vista == "rango":
         st.header("Estaciones en un rango (R3)")
