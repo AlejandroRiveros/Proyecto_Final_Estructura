@@ -102,22 +102,24 @@ def usar_en_viaje(clave, valor):
     ir("vista_consultas", "viaje")
 
 
-def menu(clave, opciones, por_fila):
-    """Inicio de una pestaña: una tarjeta por acción. Devuelve la vista elegida,
-    o None mientras se muestra el menú (con su botón para volver)."""
+def menu(clave, grupos):
+    """Inicio de una pestaña: tarjetas de acción agrupadas. grupos es una lista
+    de (título del grupo o None, opciones, tarjetas por fila). Devuelve la vista
+    elegida, o None mientras se muestra el menú (con su botón para volver)."""
     vista = st.session_state.get(clave)
     if vista is not None:
         st.button("← Volver al menú", key="volver_" + clave, on_click=ir, args=(clave, None))
         return vista
-    st.markdown("**¿Qué quieres hacer?**")
-    for i in range(0, len(opciones), por_fila):
-        columnas = st.columns(por_fila)
-        for col, (id_vista, titulo, detalle) in zip(columnas, opciones[i:i + por_fila]):
-            with col.container(border=True):
-                st.markdown(f"#### {titulo}")
-                st.caption(detalle)
-                st.button("Abrir", key=f"abrir_{clave}_{id_vista}", on_click=ir,
-                          args=(clave, id_vista), type="primary", use_container_width=True)
+    for titulo_grupo, opciones, por_fila in grupos:
+        st.subheader(titulo_grupo or "¿Qué quieres hacer?")
+        for i in range(0, len(opciones), por_fila):
+            columnas = st.columns(por_fila)
+            for col, (id_vista, titulo, detalle) in zip(columnas, opciones[i:i + por_fila]):
+                with col.container(border=True):
+                    st.markdown(f"#### {titulo}")
+                    st.caption(detalle)
+                    st.button("Abrir", key=f"abrir_{clave}_{id_vista}", on_click=ir,
+                              args=(clave, id_vista), type="primary", use_container_width=True)
     return None
 
 
@@ -144,9 +146,12 @@ def mostrar_tramos(tramos, paradas, hora_txt):
                    f"a las {hora_legible(bus_1)}.")
 
 
-MENU_CONSULTAS = [
-    ("buscar", "🔍 Buscar una estación", "Sugerencias mientras escribes, estado, rutas y próximo bus (R1, R2, R4)."),
-    ("viaje", "🧭 Planear un viaje", "De una estación a otra, directo o con un transbordo (R5)."),
+MENU_VIAJES = [
+    ("viaje", "🧭 Planear un viaje", "De una estación a otra: directo o con un transbordo (R5), y alternativas con más transbordos."),
+    ("proximo", "🕒 Próximo bus", "A qué hora pasa el siguiente bus de una ruta por una estación (R4)."),
+]
+MENU_ESTACIONES = [
+    ("buscar", "🔍 Buscar una estación", "Sugerencias mientras escribes, estado, rutas que pasan y su próximo bus (R1, R2, R4)."),
     ("rango", "🔤 Estaciones en un rango", "Estaciones abiertas entre dos nombres, en orden alfabético (R3)."),
     ("ranking", "🏆 Ranking de estaciones", "Las estaciones con más buses al día (R6)."),
 ]
@@ -160,7 +165,8 @@ MENU_OPERAR = [
 tab1, tab2, tab3 = st.tabs(["🔍 Consultas", "⚙️ Operar red", "📊 Rendimiento (R11)"])
 
 with tab1:
-    vista = menu("vista_consultas", MENU_CONSULTAS, 2)
+    vista = menu("vista_consultas", [("🚌 Viajes", MENU_VIAJES, 2),
+                                      ("🚏 Estaciones", MENU_ESTACIONES, 3)])
     if vista == "buscar":
         st.header("Buscar una estación")
 
@@ -277,6 +283,29 @@ with tab1:
                                     f"transbordo{'s' if extra > 1 else ''} más.")
                         mostrar_tramos(alterna[0], alterna[1], hora_txt)
 
+    elif vista == "proximo":
+        st.header("Próximo bus (R4)")
+        est_r4 = campo_estacion("r4_estacion", "Estación:")
+        if est_r4 is not None:
+            if red.estado(est_r4) == "cerrada":
+                st.warning(f"{est_r4} está cerrada: ningún bus para ahí (R8).")
+            else:
+                rutas_r4 = red.rutas_de(est_r4)
+                if not rutas_r4:
+                    st.info("Ninguna ruta pasa por esta estación.")
+                else:
+                    c1, c2 = st.columns([2, 1])
+                    ruta_p = c1.selectbox("Ruta:", rutas_r4, key="r4_ruta")
+                    hora_p = c2.time_input("Hora:", value=hora_actual(), step=60, key="r4_hora")
+                    hora_p_txt = hora_p.strftime("%H:%M")
+                    bus_p = red.proximo_bus(est_r4, ruta_p, hora_p_txt)
+                    if bus_p is None:
+                        st.info(f"Ruta {ruta_p} desde las {hora_p_txt}: hoy este bus ya no "
+                                "se encuentra disponible.")
+                    else:
+                        st.success(f"Ruta {ruta_p} desde las {hora_p_txt}: el próximo bus pasa "
+                                   f"por {est_r4} a las {hora_legible(bus_p)}.")
+
     elif vista == "rango":
         st.header("Estaciones en un rango (R3)")
         r1, r2 = st.columns(2)
@@ -376,7 +405,7 @@ with tab2:
         col2.button("Rehacer (R9)", on_click=op_rehacer, use_container_width=True)
         mostrar_msg("r9")
 
-    vista = menu("vista_operar", MENU_OPERAR, 3)
+    vista = menu("vista_operar", [(None, MENU_OPERAR, 3)])
     if vista == "r8":
         st.header("Cerrar o reabrir una estación (R8)")
         est_r8 = campo_estacion("op_estacion", "Estación:")
