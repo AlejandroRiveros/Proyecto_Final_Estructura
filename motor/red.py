@@ -1,6 +1,7 @@
 import csv
 
 from motor.estructuras import ListaDoble, Pila, TablaHash, merge_sort, esta_ordenado, primer_mayor_o_igual
+from motor.estructuras.cola import Cola
 
 # Respuestas de estado(). Si el enunciado pide otro formato, solo se cambian aquí.
 ABIERTA = "abierta"
@@ -462,6 +463,73 @@ class Red:
                 nodo = nodo.anterior
                 paradas += 1
         return mejor
+
+    # Apoyo para la app (no es parte del contrato): cuando R5 no encuentra viaje.
+    def viaje_con_transbordos(self, origen, destino):
+        """Viaje con cualquier número de transbordos: el de menos tramos y,
+        entre los que tienen los mismos tramos, el de menos paradas.
+
+        Devuelve una lista de tramos (ruta, sube_en, baja_en), como viaje(),
+        o None si no hay forma de llegar. Mismas reglas de R5: origen, destino
+        y transbordos abiertos; una cerrada intermedia no corta la ruta.
+
+        BFS por niveles sobre el grafo implícito de la red (sesión 10): cada
+        salto es un tramo completo, desde donde se sube hasta una parada
+        abierta posterior de la misma ruta, así que el nivel de una estación es
+        el número de tramos para llegar a ella. Una estación entra a la cola
+        una sola vez (la primera vez que se alcanza, con el menor número de
+        tramos); mientras se procesa el nivel anterior se le puede mejorar el
+        número de paradas, y por eso al encontrar el destino se termina ese
+        nivel antes de parar.
+        O(V × r × L): V = estaciones, r = rutas por estación, L = paradas por ruta.
+        """
+        if origen == destino or not self._abierta(origen) or not self._abierta(destino):
+            return None
+        # llegada: estación -> (tramos, paradas, ruta del último tramo, dónde se subió).
+        llegada = TablaHash()
+        llegada.poner(origen, (0, 0, None, None))
+        cola = Cola()
+        cola.encolar(origen)
+        tramos_destino = None
+        while not cola.esta_vacia():
+            actual = cola.desencolar()
+            tramos, paradas_actual, _, _ = llegada.obtener(actual)
+            if tramos_destino is not None and tramos >= tramos_destino:
+                break  # ya se terminó el nivel que alcanzó el destino
+            for nombre_ruta in self._rutas_de(actual):
+                nodo = self._rutas.obtener(nombre_ruta).nodos.obtener(actual).siguiente
+                paradas = paradas_actual + 1
+                while nodo is not None:
+                    vecina = nodo.valor
+                    if self._abierta(vecina):
+                        previa = llegada.obtener(vecina)
+                        if previa is None:
+                            llegada.poner(vecina, (tramos + 1, paradas, nombre_ruta, actual))
+                            if vecina == destino:
+                                tramos_destino = tramos + 1
+                            else:
+                                cola.encolar(vecina)
+                        elif previa[0] == tramos + 1 and (
+                                paradas < previa[1]
+                                or (paradas == previa[1] and nombre_ruta < previa[2])):
+                            llegada.poner(vecina, (tramos + 1, paradas, nombre_ruta, actual))
+                    nodo = nodo.siguiente
+                    paradas += 1
+        if tramos_destino is None:
+            return None
+        # Se reconstruye desde el destino hacia atrás y se voltea a mano.
+        al_reves = []
+        estacion = destino
+        while estacion != origen:
+            _, _, nombre_ruta, subio = llegada.obtener(estacion)
+            al_reves.append((nombre_ruta, subio, estacion))
+            estacion = subio
+        resultado = []
+        i = len(al_reves) - 1
+        while i >= 0:
+            resultado.append(al_reves[i])
+            i -= 1
+        return resultado
 
     # R6
     def ranking(self, k):

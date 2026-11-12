@@ -121,6 +121,27 @@ def menu(clave, opciones, por_fila):
     return None
 
 
+def mostrar_tramos(tramos):
+    """Pasos del viaje y, con R4, cuándo pasa el bus del primer tramo."""
+    for n, (ruta, sube, baja) in enumerate(tramos, 1):
+        st.write(f"{n}. Toma la ruta **{ruta}** en **{sube}** y bájate en **{baja}**.")
+    if len(tramos) > 1:
+        cambios = [baja for _, _, baja in tramos[:-1]]
+        st.caption(("Transbordo en " if len(cambios) == 1 else "Transbordos en ")
+                   + ", ".join(cambios[:-1]) + (" y " if len(cambios) > 1 else "")
+                   + cambios[-1] + ".")
+    ruta_1, sube_1 = tramos[0][0], tramos[0][1]
+    hora_v = st.time_input("¿A qué hora sales?", value=hora_actual(), step=60, key="hora_viaje")
+    hora_v_txt = hora_v.strftime("%H:%M")
+    bus_1 = red.proximo_bus(sube_1, ruta_1, hora_v_txt)
+    if bus_1 is None:
+        st.info(f"Próximo bus (R4): la ruta {ruta_1} en {sube_1} desde las "
+                f"{hora_v_txt}: hoy este bus ya no se encuentra disponible.")
+    else:
+        st.success(f"Próximo bus (R4): la ruta {ruta_1} pasa por {sube_1} "
+                   f"a las {hora_legible(bus_1)}.")
+
+
 MENU_CONSULTAS = [
     ("buscar", "🔍 Buscar una estación", "Sugerencias mientras escribes, estado, rutas y próximo bus (R1, R2, R4)."),
     ("viaje", "🧭 Planear un viaje", "De una estación a otra, directo o con un transbordo (R5)."),
@@ -219,24 +240,22 @@ with tab1:
             elif origen == destino:
                 st.info("Origen y destino son la misma estación.")
             elif tramos is None:
-                st.warning("No hay viaje directo ni con un solo transbordo entre esas estaciones.")
+                st.warning("No hay viaje directo ni con un solo transbordo entre esas estaciones (R5).")
+                # Búsqueda aparte (no es R5): BFS por tramos, sin límite de transbordos.
+                # Se guarda solo qué par se pidió; el viaje se recalcula en cada
+                # vista para que siga los cierres y ediciones de la red.
+                st.button("Buscar con más transbordos", on_click=ir,
+                          args=("mas_transbordos", (origen, destino)))
+                if st.session_state.get("mas_transbordos") == (origen, destino):
+                    largo = red.viaje_con_transbordos(origen, destino)
+                    if largo is None:
+                        st.info("Tampoco hay forma de llegar con más transbordos.")
+                    else:
+                        st.caption("Con más transbordos: primero el de menos tramos y, "
+                                   "entre esos, el de menos paradas.")
+                        mostrar_tramos(largo)
             else:
-                for n, (ruta, sube, baja) in enumerate(tramos, 1):
-                    st.write(f"{n}. Toma la ruta **{ruta}** en **{sube}** y bájate en **{baja}**.")
-                if len(tramos) == 2:
-                    st.caption(f"Transbordo en {tramos[0][2]}.")
-                # R4 sobre el primer tramo: cuándo pasa el bus que hay que tomar al salir.
-                ruta_1, sube_1 = tramos[0][0], tramos[0][1]
-                hora_v = st.time_input("¿A qué hora sales?", value=hora_actual(), step=60,
-                                       key="hora_viaje")
-                hora_v_txt = hora_v.strftime("%H:%M")
-                bus_1 = red.proximo_bus(sube_1, ruta_1, hora_v_txt)
-                if bus_1 is None:
-                    st.info(f"Próximo bus (R4): la ruta {ruta_1} en {sube_1} desde las "
-                            f"{hora_v_txt}: hoy este bus ya no se encuentra disponible.")
-                else:
-                    st.success(f"Próximo bus (R4): la ruta {ruta_1} pasa por {sube_1} "
-                               f"a las {hora_legible(bus_1)}.")
+                mostrar_tramos(tramos)
 
     elif vista == "rango":
         st.header("Estaciones en un rango (R3)")

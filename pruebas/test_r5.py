@@ -152,5 +152,114 @@ class TestR5ContraFuerzaBruta(unittest.TestCase):
                 self.assertEqual(tramos[-1][2], d)
 
 
+def bruto_transbordos(red, origen, destino):
+    """(tramos, paradas) mínimos con cualquier número de transbordos.
+    Dijkstra con heapq sobre estaciones (fuera del motor se permite);
+    cada salto es un tramo completo, con costo (1, paradas del tramo)."""
+    import heapq
+    if origen == destino or red.estado(origen) != "abierta" or red.estado(destino) != "abierta":
+        return None
+    rutas = [red.recorrido(n) for n in red._rutas.claves()]
+    mejor = {origen: (0, 0)}
+    cola = [(0, 0, origen)]
+    while cola:
+        t, p, x = heapq.heappop(cola)
+        if (t, p) > mejor[x]:
+            continue
+        if x == destino:
+            return (t, p)
+        for paradas in rutas:
+            if x not in paradas:
+                continue
+            i = paradas.index(x)
+            for j in range(i + 1, len(paradas)):
+                y = paradas[j]
+                if red.estado(y) != "abierta":
+                    continue
+                c = (t + 1, p + j - i)
+                if y not in mejor or c < mejor[y]:
+                    mejor[y] = c
+                    heapq.heappush(cola, (c[0], c[1], y))
+    return None
+
+
+class TestViajeConTransbordos(unittest.TestCase):
+    """Búsqueda con más transbordos (BFS por tramos), apoyo de la app."""
+
+    def revisar(self, red, origen, destino, tramos):
+        self.assertEqual(tramos[0][1], origen)
+        self.assertEqual(tramos[-1][2], destino)
+        for (r1, _, baja), (r2, sube, _) in zip(tramos, tramos[1:]):
+            self.assertEqual(baja, sube)
+            self.assertNotEqual(r1, r2)
+            self.assertEqual(red.estado(sube), "abierta")
+        for ruta, sube, baja in tramos:
+            p = red.recorrido(ruta)
+            self.assertLess(p.index(sube), p.index(baja))
+
+    def test_tres_tramos_en_la_red_real(self):
+        red = Red(os.path.join(RAIZ, "datos"))
+        tramos = red.viaje_con_transbordos("AV. AMERICAS - AV. BOYACA", "BOSA")
+        self.assertEqual(len(tramos), 3)
+        self.revisar(red, "AV. AMERICAS - AV. BOYACA", "BOSA", tramos)
+
+    def test_menos_tramos_antes_que_menos_paradas(self):
+        # Directo de 6 paradas contra 2 tramos de 2 paradas: gana el directo.
+        red = red_de({"L": ["A", "B", "C", "D", "E", "F", "Z"],
+                      "X": ["A", "M"], "Y": ["M", "Z"]})
+        self.assertEqual(red.viaje_con_transbordos("A", "Z"), [("L", "A", "Z")])
+
+    def test_desempate_por_paradas_en_el_mismo_nivel(self):
+        # B y C están en la misma ruta S desde A, así que B entra a la cola
+        # antes. Q se descubre primero desde B (6 paradas) y luego se mejora
+        # desde C (4) en el mismo nivel: el viaje debe ir por C.
+        red = red_de({"S": ["A", "B", "X", "C"], "R2": ["B", "P", "P2", "P3", "P4", "Q"],
+                      "S2": ["C", "Q"], "R3": ["Q", "Z"]})
+        tramos = red.viaje_con_transbordos("A", "Z")
+        self.assertEqual(tramos, [("S", "A", "C"), ("S2", "C", "Q"), ("R3", "Q", "Z")])
+        self.assertEqual(paradas_de(red, tramos), 5)
+        self.revisar(red, "A", "Z", tramos)
+
+    def test_cerradas_y_bordes(self):
+        red = red_de({"R1": ["A", "B"], "R2": ["B", "C"], "R3": ["C", "D"]})
+        self.assertEqual(len(red.viaje_con_transbordos("A", "D")), 3)
+        red.cerrar("C")  # no se puede transbordar en C
+        self.assertIsNone(red.viaje_con_transbordos("A", "D"))
+        red.deshacer()
+        self.assertIsNone(red.viaje_con_transbordos("A", "A"))
+        self.assertIsNone(red.viaje_con_transbordos("D", "A"))  # sentido único
+        self.assertIsNone(red.viaje_con_transbordos("A", "NO EXISTE"))
+
+    def test_resuelve_lo_que_r5_no(self):
+        red = Red(os.path.join(RAIZ, "datos"))
+        nombres = red.rango("", "\uffff")
+        sin_r5 = 0
+        for o in nombres:
+            for d in nombres:
+                if o != d and red.viaje(o, d) is None:
+                    sin_r5 += 1
+                    tramos = red.viaje_con_transbordos(o, d)
+                    self.assertIsNotNone(tramos, (o, d))
+                    self.revisar(red, o, d, tramos)
+        self.assertEqual(sin_r5, 518)
+
+    def test_contra_dijkstra(self):
+        red = Red(os.path.join(RAIZ, "datos"))
+        nombres = red.rango("", "\uffff")
+        azar = random.Random(11)
+        for paso in range(200):
+            if paso == 100:
+                for e in azar.sample(nombres, 15):
+                    red.cerrar(e)
+            o, d = azar.sample(nombres, 2)
+            tramos = red.viaje_con_transbordos(o, d)
+            esperado = bruto_transbordos(red, o, d)
+            if esperado is None:
+                self.assertIsNone(tramos, (o, d))
+            else:
+                self.revisar(red, o, d, tramos)
+                self.assertEqual((len(tramos), paradas_de(red, tramos)), esperado, (o, d))
+
+
 if __name__ == "__main__":
     unittest.main()
