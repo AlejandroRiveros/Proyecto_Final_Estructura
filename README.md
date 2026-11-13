@@ -10,8 +10,7 @@ Desde la raíz del repositorio, una sola vez: `pip install -r requirements.txt`.
 python -m streamlit run app/app.py
 ```
 
-Se usa `python -m` porque así la raíz del repositorio queda en el path y la app encuentra `motor/`
-(con `streamlit run app/app.py` a secas, Python solo ve la carpeta `app/`).
+También funciona `streamlit run app/app.py`: la app agrega la raíz del repositorio al path para encontrar `motor/` y lee `datos/` desde ahí, así que corre desde cualquier carpeta y en Streamlit Community Cloud (archivo principal `app/app.py`).
 
 El panel de rendimiento (R11) también se puede abrir solo: `python -m streamlit run app/panel_r11.py`.
 

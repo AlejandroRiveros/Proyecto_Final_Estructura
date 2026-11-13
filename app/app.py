@@ -1,14 +1,22 @@
 import streamlit as st
 from datetime import datetime, timedelta, timezone
 import os
-from motor import Red, simular_fila
+import sys
+
+# Raíz del repositorio en el path, para que `streamlit run app/app.py` encuentre
+# motor/ sin `python -m` (así también corre en Streamlit Community Cloud).
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if RAIZ not in sys.path:
+    sys.path.insert(0, RAIZ)
+
+from motor import Red, simular_fila  # noqa: E402
 
 st.set_page_config(page_title="Planeador TransMilenio", layout="wide")
 
 st.title("🚌 Planeador de viajes TransMilenio")
 st.caption("Proyecto final · Estructuras de datos y algoritmos")
 
-ruta_datos = "datos"
+ruta_datos = os.path.join(RAIZ, "datos")
 if os.path.exists(ruta_datos):
     if "app_red" not in st.session_state:
         st.session_state["app_red"] = Red(ruta_datos)
