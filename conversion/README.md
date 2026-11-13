@@ -6,8 +6,6 @@
 - `rutas.csv`: ruta, orden, estacion
 - `horarios.csv`: ruta, estacion, hora
 
-Además escribe `coordenadas.csv` (estacion, lat, lon): la posición de cada estación es el promedio de sus vagones y plataformas que usan los viajes troncales. Solo la usa la app para el mapa del viaje; el motor no la lee. Las 147 estaciones tienen coordenadas. El GTFS no trae `shapes.txt`, así que el mapa une estaciones en línea recta y no sigue el trazado de la vía.
-
 ## Qué hay en cada carpeta
 
 | Carpeta | Origen y uso |

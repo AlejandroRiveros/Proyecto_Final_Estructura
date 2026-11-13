@@ -8,8 +8,6 @@ Uso (desde la raíz del repositorio):
 Lee el .zip directamente (no hay que descomprimirlo) y escribe en carpeta_salida
 estaciones.csv, rutas.csv y horarios.csv. Con --comparar, además compara el
 resultado con otra carpeta de CSV (por ejemplo, los que entregó el profesor).
-También escribe coordenadas.csv (estacion, lat, lon), que usa solo la app para
-dibujar el mapa del viaje; el motor no lo lee.
 
 Este archivo está fuera de motor/, así que aquí se usan pandas, dict y set.
 
@@ -41,9 +39,6 @@ Reglas de la conversión (deducidas comparando con los CSV del profesor):
    extendidas del GTFS se conservan (25:10:00 -> "25:10", la 01:10 del día
    siguiente dentro del mismo día de servicio): así se ordenan después de las
    23:59 y siguen contando en R6. El GTFS de 2021-07-14 no trae ninguna.
-8. coordenadas.csv: la posición de cada estación es el promedio de stop_lat y
-   stop_lon de sus paradas (vagones y plataformas) que usan los viajes troncales
-   elegidos. Así no entran paraderos zonales que tienen el mismo nombre.
 """
 
 import argparse
@@ -104,7 +99,7 @@ def _sin_repetidas_seguidas(secuencia):
 
 
 def convertir(ruta_zip):
-    """Devuelve (estaciones, rutas, horarios, coordenadas) como DataFrames."""
+    """Devuelve (estaciones, rutas, horarios) como DataFrames."""
     z = zipfile.ZipFile(ruta_zip)
     routes = _leer(z, "routes.txt")
     troncales = routes[routes.route_desc == "TRONCAL"][["route_id", "route_short_name"]]
@@ -178,15 +173,7 @@ def convertir(ruta_zip):
 
     rutas = pd.DataFrame(filas_rutas, columns=["ruta", "orden", "estacion"]).sort_values(["ruta", "orden"])
     estaciones = pd.DataFrame({"nombre": sorted(set(rutas.estacion))})
-
-    # Regla 8: solo las paradas que usan los viajes troncales elegidos.
-    usadas = stops[stops.stop_id.isin(set(st.stop_id))].copy()
-    usadas["estacion"] = usadas.stop_id.map(estacion_de)
-    usadas["lat"] = usadas.stop_lat.astype(float)
-    usadas["lon"] = usadas.stop_lon.astype(float)
-    coordenadas = (usadas.groupby("estacion")[["lat", "lon"]].mean().round(6)
-                   .reindex(estaciones.nombre).rename_axis("estacion").reset_index())
-    return estaciones, rutas, horarios, coordenadas
+    return estaciones, rutas, horarios
 
 
 def comparar(salida, referencia):
@@ -215,12 +202,11 @@ def main(argv=None):
     p.add_argument("salida")
     p.add_argument("--comparar", metavar="CARPETA", help="carpeta con CSV de referencia")
     args = p.parse_args(argv)
-    estaciones, rutas, horarios, coordenadas = convertir(args.gtfs_zip)
+    estaciones, rutas, horarios = convertir(args.gtfs_zip)
     os.makedirs(args.salida, exist_ok=True)
     estaciones.to_csv(os.path.join(args.salida, "estaciones.csv"), index=False)
     rutas.to_csv(os.path.join(args.salida, "rutas.csv"), index=False)
     horarios.to_csv(os.path.join(args.salida, "horarios.csv"), index=False)
-    coordenadas.to_csv(os.path.join(args.salida, "coordenadas.csv"), index=False)
     print("Escrito en %s: %d estaciones, %d rutas (%d paradas), %d horarios" % (
         args.salida, len(estaciones), rutas.ruta.nunique(), len(rutas), len(horarios)))
     if args.comparar:

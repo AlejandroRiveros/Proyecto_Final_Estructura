@@ -18,7 +18,7 @@ El panel de rendimiento (R11) también se puede abrir solo: `python -m streamlit
 ## Estructura
 
 - `motor/`: paquete Python con toda la lógica (`from motor import Red, simular_fila`).
-- `conversion/`: script del GTFS a los tres CSV (`convertir.py`) y los CSV que genera (`conversion/generados/`). También genera `coordenadas.csv` (latitud y longitud de cada estación, promedio de sus vagones en el GTFS), que solo lee la app para dibujar el mapa del viaje; el motor no lo usa.
+- `conversion/`: script del GTFS a los tres CSV (`convertir.py`) y los CSV que genera (`conversion/generados/`).
 - `datos/`: CSV entregados por el profesor. Son los que usan la app y las pruebas.
 - `datos/`: `estaciones.csv`, `rutas.csv`, `horarios.csv`.
 - `app/`: front y panel de rendimiento (R11).

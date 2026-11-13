@@ -1,9 +1,6 @@
 import streamlit as st
 from datetime import datetime, timedelta, timezone
-import csv
-import math
 import os
-import pydeck as pdk
 from motor import Red, simular_fila
 
 st.set_page_config(page_title="Planeador TransMilenio", layout="wide")
@@ -126,76 +123,10 @@ def menu(clave, grupos):
     return None
 
 
-# Coordenadas de las estaciones: las genera conversion/convertir.py desde el GTFS
-# (promedio de sus vagones). Solo las usa la app para el mapa; el motor no las lee.
-RUTA_COORDENADAS = os.path.join("conversion", "generados", "coordenadas.csv")
 NOTA_HORARIOS = "Horarios programados según el GTFS de TransMilenio de julio de 2021."
-COLORES_TRAMO = [[200, 16, 46], [0, 114, 178], [0, 158, 115], [230, 159, 0], [204, 121, 167]]
 
 
-@st.cache_data
-def coordenadas():
-    if not os.path.exists(RUTA_COORDENADAS):
-        return {}
-    with open(RUTA_COORDENADAS, encoding="utf-8") as f:
-        return {fila["estacion"]: (float(fila["lat"]), float(fila["lon"]))
-                for fila in csv.DictReader(f) if fila["lat"]}
-
-
-def paradas_del_tramo(ruta, sube, baja):
-    """Estaciones de la ruta desde `sube` hasta `baja`, en el orden en que las recorre (R7)."""
-    camino = []
-    for estacion in red.recorrido(ruta):
-        if camino or estacion == sube:
-            camino.append(estacion)
-            if estacion == baja and len(camino) > 1:
-                return camino
-    return [sube, baja]
-
-
-def mapa_viaje(tramos, clave):
-    """Mapa con cada tramo de un color, y puntos en origen, transbordos y destino."""
-    coord = coordenadas()
-    caminos, puntos = [], []
-    for n, (ruta, sube, baja) in enumerate(tramos):
-        color = COLORES_TRAMO[n % len(COLORES_TRAMO)]
-        estaciones = paradas_del_tramo(ruta, sube, baja)
-        if any(e not in coord for e in estaciones):
-            return  # sin coordenadas para alguna estación: no se dibuja nada
-        caminos.append({"nombre": f"Ruta {ruta}: {sube} → {baja}", "color": color,
-                        "camino": [[coord[e][1], coord[e][0]] for e in estaciones]})
-        tipo = "Origen" if n == 0 else "Transbordo"
-        puntos.append({"nombre": f"{tipo}: {sube}", "lat": coord[sube][0],
-                       "lon": coord[sube][1], "color": color})
-    destino = tramos[-1][2]
-    puntos.append({"nombre": f"Destino: {destino}", "lat": coord[destino][0],
-                   "lon": coord[destino][1], "color": [40, 40, 40]})
-    # Encuadre: centro del recuadro que contiene el viaje y el zoom más cercano en
-    # que cabe en unos 700 x 300 px (en Web Mercator, a zoom z un grado mide
-    # 256·2^z/360 px; cerca del ecuador vale igual para latitud y longitud).
-    lons = [p[0] for c in caminos for p in c["camino"]]
-    lats = [p[1] for c in caminos for p in c["camino"]]
-    ancho = max(max(lons) - min(lons), 0.005)
-    alto = max(max(lats) - min(lats), 0.005)
-    zoom = min(math.log2(700 * 360 / (256 * ancho)), math.log2(300 * 360 / (256 * alto)), 14)
-    vista = pdk.ViewState(latitude=(min(lats) + max(lats)) / 2,
-                          longitude=(min(lons) + max(lons)) / 2, zoom=zoom)
-    capas = [
-        pdk.Layer("PathLayer", caminos, get_path="camino", get_color="color",
-                  width_min_pixels=5, pickable=True),
-        pdk.Layer("ScatterplotLayer", puntos, get_position=["lon", "lat"],
-                  get_fill_color="color", get_radius=120, radius_min_pixels=6,
-                  stroked=True, get_line_color=[255, 255, 255], line_width_min_pixels=2,
-                  pickable=True),
-    ]
-    st.pydeck_chart(pdk.Deck(layers=capas, initial_view_state=vista, map_style="light",
-                             tooltip={"text": "{nombre}"}),
-                    height=360, key="mapa_" + clave)
-    st.caption("Posición de las estaciones según el GTFS de julio de 2021. Las líneas unen "
-               "estaciones en orden; no siguen el trazado exacto de la vía.")
-
-
-def mostrar_tramos(tramos, paradas, hora_txt, clave="principal"):
+def mostrar_tramos(tramos, paradas, hora_txt):
     """Pasos del viaje, cuántas paradas (las cuenta el motor) y transbordos, y
     con R4 cuándo pasa el bus del primer tramo."""
     for n, (ruta, sube, baja) in enumerate(tramos, 1):
@@ -217,8 +148,6 @@ def mostrar_tramos(tramos, paradas, hora_txt, clave="principal"):
         st.success(f"Próximo bus (R4): la ruta {ruta_1} pasa por {sube_1} "
                    f"a las {hora_legible(bus_1)}.")
     st.caption(NOTA_HORARIOS)
-    with st.expander("🗺️ Ver el viaje en el mapa", expanded=(clave == "principal")):
-        mapa_viaje(tramos, clave)
 
 
 # R10: pasajeros que caben en cada tipo de bus (sitio oficial de TransMilenio).
@@ -371,7 +300,7 @@ with tab1:
                         st.markdown(f"**Alternativa con menos paradas (Dijkstra):** {ahorro} "
                                     f"parada{'s' if ahorro > 1 else ''} menos, {extra} "
                                     f"transbordo{'s' if extra > 1 else ''} más.")
-                        mostrar_tramos(alterna[0], alterna[1], hora_txt, "alterna")
+                        mostrar_tramos(alterna[0], alterna[1], hora_txt)
 
     elif vista == "proximo":
         st.header("Próximo bus (R4)")
