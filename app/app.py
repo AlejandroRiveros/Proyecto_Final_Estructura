@@ -231,14 +231,13 @@ with tab1:
                     hora_r4 = c2.time_input("Hora", value=hora_actual(), step=60, key="hora_r4")
                     c3.write("")
                     if c3.button("Próximo bus (R4)", use_container_width=True):
-                        # El último resultado queda en session_state para que no se borre
-                        # al tocar otro widget; se guarda con qué estación, ruta y hora se pidió.
-                        hora_txt = hora_r4.strftime("%H:%M")
+                        # Se guarda solo qué se pidió (estación, ruta y hora); el bus se
+                        # vuelve a consultar en cada vista, así sigue cierres y ediciones.
                         st.session_state["res_r4"] = {
-                            "estacion": elegida, "ruta": ruta_r4, "hora": hora_txt,
-                            "bus": red.proximo_bus(elegida, ruta_r4, hora_txt)}
+                            "estacion": elegida, "ruta": ruta_r4, "hora": hora_r4.strftime("%H:%M")}
                     res_r4 = st.session_state.get("res_r4")
                     if res_r4 and res_r4["estacion"] == elegida:
+                        res_r4["bus"] = red.proximo_bus(elegida, res_r4["ruta"], res_r4["hora"])
                         if res_r4["bus"] is None:
                             st.info(f"Ruta {res_r4['ruta']} desde las {res_r4['hora']}: "
                                     "hoy este bus ya no se encuentra disponible.")
@@ -334,11 +333,12 @@ with tab1:
         with r2:
             sup_r3 = campo_estacion("r3_hasta", "Hasta:")
         if st.button("Listar rango (R3)", disabled=not (inf_r3 and sup_r3)):
-            st.session_state["res_r3"] = {
-                "desde": inf_r3, "hasta": sup_r3, "estaciones": red.rango(inf_r3, sup_r3)}
+            # Se guarda solo el rango pedido; la lista se recalcula en cada vista
+            # para que siga los cierres y reaperturas (R8).
+            st.session_state["res_r3"] = {"desde": inf_r3, "hasta": sup_r3}
         res_r3 = st.session_state.get("res_r3")
         if res_r3:
-            estaciones_r3 = res_r3["estaciones"]
+            estaciones_r3 = red.rango(res_r3["desde"], res_r3["hasta"])
             if not estaciones_r3:
                 st.info(f"No hay estaciones abiertas entre «{res_r3['desde']}» y «{res_r3['hasta']}».")
             else:
@@ -352,14 +352,17 @@ with tab1:
         st.header("Ranking de estaciones con más buses (R6)")
         k_r6 = st.number_input("Cuántas (k):", min_value=1, value=10, step=1)
         if st.button("Ver ranking (R6)"):
-            st.session_state["res_r6"] = {"k": int(k_r6), "ranking": red.ranking(int(k_r6))}
+            # Se guarda solo k; el ranking se consulta en cada vista (es O(k)) para
+            # que siga las ediciones de rutas (R7), los cierres (R8) y R9.
+            st.session_state["res_r6"] = {"k": int(k_r6)}
         res_r6 = st.session_state.get("res_r6")
         if res_r6:
-            if not res_r6["ranking"]:
+            ranking_r6 = red.ranking(res_r6["k"])
+            if not ranking_r6:
                 st.info("No hay estaciones abiertas para el ranking.")
             else:
                 st.caption(f"Top {res_r6['k']} de estaciones con más buses al día:")
-                st.markdown("\n".join(f"{n}. {est}" for n, est in enumerate(res_r6["ranking"], 1)))
+                st.markdown("\n".join(f"{n}. {est}" for n, est in enumerate(ranking_r6, 1)))
 
 with tab2:
     import csv
@@ -477,8 +480,8 @@ with tab2:
             st.session_state.setdefault(clave_r10, inicial)
         st.button("📍 Caso real: Calle 100, 17:00–18:00 (julio de 2021)", on_click=caso_calle_100)
         st.caption("Ese miércoles 14 de julio de 2021 hubo 3.862 validaciones en Calle 100 entre "
-                   "las 17:00 y las 18:00 (unos 64 por minuto), y la ruta F14-1 pasa por ahí cada "
-                   "3 minutos en esa hora. Ojo: las validaciones cuentan todas las entradas a la "
+                   "las 17:00 y las 18:00 (unos 64 por minuto), y el intervalo mediano programado "
+                   "de la ruta F14-1 ahí en esa hora fue de 3 minutos. Ojo: las validaciones cuentan todas las entradas a la "
                    "estación, no solo los pasajeros de una ruta.")
         c1, c2 = st.columns(2)
         ritmo_r10 = c1.number_input("Llegan pasajeros por minuto:", min_value=1,
@@ -516,8 +519,8 @@ with tab2:
             m3.metric("Espera del último pasajero", f"{esperas[-1]} min")
             # Si los buses se llevan menos gente de la que llega, la fila crece.
             if res_r10["capacidad"] < res_r10["ritmo"] * res_r10["frecuencia"]:
-                st.warning("Llegan más pasajeros de los que caben en los buses: la fila crece "
-                           "y la espera aumenta con cada pasajero.")
+                st.warning("Llegan más pasajeros de los que caben en los buses: si las llegadas "
+                           "mantienen este ritmo, la fila tiende a crecer.")
             if p <= 20:
                 st.write("Espera de cada pasajero, en orden de llegada (minutos):",
                          ", ".join(str(e) for e in esperas))
