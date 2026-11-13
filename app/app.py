@@ -457,8 +457,9 @@ with tab2:
         c3, c4 = st.columns(2)
         freq_r10 = c3.number_input("Sale un bus cada (minutos, el primero en el minuto 0):",
                                    min_value=1, max_value=1440, value=3, step=1)
-        cap_r10 = c4.number_input("Capacidad de cada bus (pasajeros que caben en un bus):",
-                                  min_value=1, max_value=1000, value=1, step=1)
+        # Un bus de TransMilenio lleva como mínimo unos 160 pasajeros.
+        cap_r10 = c4.number_input("Capacidad de cada bus (pasajeros que caben en un bus, mínimo 160):",
+                                  min_value=160, max_value=1000, value=160, step=1)
         if st.button("Simular fila (R10)"):
             llegadas_r10 = [i * int(int_r10) for i in range(int(pas_r10))]
             st.session_state["res_r10"] = {
