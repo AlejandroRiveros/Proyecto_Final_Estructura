@@ -1,6 +1,9 @@
 import streamlit as st
 from datetime import datetime, timedelta, timezone
+import csv
+import math
 import os
+import pydeck as pdk
 from motor import Red, simular_fila
 
 st.set_page_config(page_title="Planeador TransMilenio", layout="wide")
@@ -123,7 +126,76 @@ def menu(clave, grupos):
     return None
 
 
-def mostrar_tramos(tramos, paradas, hora_txt):
+# Coordenadas de las estaciones: las genera conversion/convertir.py desde el GTFS
+# (promedio de sus vagones). Solo las usa la app para el mapa; el motor no las lee.
+RUTA_COORDENADAS = os.path.join("conversion", "generados", "coordenadas.csv")
+NOTA_HORARIOS = "Horarios programados según el GTFS de TransMilenio de julio de 2021."
+COLORES_TRAMO = [[200, 16, 46], [0, 114, 178], [0, 158, 115], [230, 159, 0], [204, 121, 167]]
+
+
+@st.cache_data
+def coordenadas():
+    if not os.path.exists(RUTA_COORDENADAS):
+        return {}
+    with open(RUTA_COORDENADAS, encoding="utf-8") as f:
+        return {fila["estacion"]: (float(fila["lat"]), float(fila["lon"]))
+                for fila in csv.DictReader(f) if fila["lat"]}
+
+
+def paradas_del_tramo(ruta, sube, baja):
+    """Estaciones de la ruta desde `sube` hasta `baja`, en el orden en que las recorre (R7)."""
+    camino = []
+    for estacion in red.recorrido(ruta):
+        if camino or estacion == sube:
+            camino.append(estacion)
+            if estacion == baja and len(camino) > 1:
+                return camino
+    return [sube, baja]
+
+
+def mapa_viaje(tramos, clave):
+    """Mapa con cada tramo de un color, y puntos en origen, transbordos y destino."""
+    coord = coordenadas()
+    caminos, puntos = [], []
+    for n, (ruta, sube, baja) in enumerate(tramos):
+        color = COLORES_TRAMO[n % len(COLORES_TRAMO)]
+        estaciones = paradas_del_tramo(ruta, sube, baja)
+        if any(e not in coord for e in estaciones):
+            return  # sin coordenadas para alguna estación: no se dibuja nada
+        caminos.append({"nombre": f"Ruta {ruta}: {sube} → {baja}", "color": color,
+                        "camino": [[coord[e][1], coord[e][0]] for e in estaciones]})
+        tipo = "Origen" if n == 0 else "Transbordo"
+        puntos.append({"nombre": f"{tipo}: {sube}", "lat": coord[sube][0],
+                       "lon": coord[sube][1], "color": color})
+    destino = tramos[-1][2]
+    puntos.append({"nombre": f"Destino: {destino}", "lat": coord[destino][0],
+                   "lon": coord[destino][1], "color": [40, 40, 40]})
+    # Encuadre: centro del recuadro que contiene el viaje y el zoom más cercano en
+    # que cabe en unos 700 x 300 px (en Web Mercator, a zoom z un grado mide
+    # 256·2^z/360 px; cerca del ecuador vale igual para latitud y longitud).
+    lons = [p[0] for c in caminos for p in c["camino"]]
+    lats = [p[1] for c in caminos for p in c["camino"]]
+    ancho = max(max(lons) - min(lons), 0.005)
+    alto = max(max(lats) - min(lats), 0.005)
+    zoom = min(math.log2(700 * 360 / (256 * ancho)), math.log2(300 * 360 / (256 * alto)), 14)
+    vista = pdk.ViewState(latitude=(min(lats) + max(lats)) / 2,
+                          longitude=(min(lons) + max(lons)) / 2, zoom=zoom)
+    capas = [
+        pdk.Layer("PathLayer", caminos, get_path="camino", get_color="color",
+                  width_min_pixels=5, pickable=True),
+        pdk.Layer("ScatterplotLayer", puntos, get_position=["lon", "lat"],
+                  get_fill_color="color", get_radius=120, radius_min_pixels=6,
+                  stroked=True, get_line_color=[255, 255, 255], line_width_min_pixels=2,
+                  pickable=True),
+    ]
+    st.pydeck_chart(pdk.Deck(layers=capas, initial_view_state=vista, map_style="light",
+                             tooltip={"text": "{nombre}"}),
+                    height=360, key="mapa_" + clave)
+    st.caption("Posición de las estaciones según el GTFS de julio de 2021. Las líneas unen "
+               "estaciones en orden; no siguen el trazado exacto de la vía.")
+
+
+def mostrar_tramos(tramos, paradas, hora_txt, clave="principal"):
     """Pasos del viaje, cuántas paradas (las cuenta el motor) y transbordos, y
     con R4 cuándo pasa el bus del primer tramo."""
     for n, (ruta, sube, baja) in enumerate(tramos, 1):
@@ -144,6 +216,23 @@ def mostrar_tramos(tramos, paradas, hora_txt):
     else:
         st.success(f"Próximo bus (R4): la ruta {ruta_1} pasa por {sube_1} "
                    f"a las {hora_legible(bus_1)}.")
+    st.caption(NOTA_HORARIOS)
+    with st.expander("🗺️ Ver el viaje en el mapa", expanded=(clave == "principal")):
+        mapa_viaje(tramos, clave)
+
+
+# R10: pasajeros que caben en cada tipo de bus (sitio oficial de TransMilenio).
+# En "Personalizado" se escriben los cupos libres, porque el bus puede llegar con gente.
+TIPOS_BUS = {"Articulado (160 pasajeros)": 160, "Biarticulado (260 pasajeros)": 260,
+             "Personalizado": None}
+
+
+def caso_calle_100():
+    # 3.862 validaciones entre las 17:00 y las 18:00 son unas 64 por minuto; la
+    # F14-1 pasa cada 3 minutos (mediana en datos/horarios.csv).
+    st.session_state["r10_ritmo"] = 64
+    st.session_state["r10_pasajeros"] = 3862
+    st.session_state["r10_frecuencia"] = 3
 
 
 MENU_VIAJES = [
@@ -227,6 +316,7 @@ with tab1:
                         else:
                             st.success(f"Ruta {res_r4['ruta']} desde las {res_r4['hora']}: "
                                        f"el próximo bus pasa a las {hora_legible(res_r4['bus'])}.")
+                        st.caption(NOTA_HORARIOS)
                 b1, b2 = st.columns(2)
                 b1.button("Usar como origen del viaje (R5)", on_click=usar_en_viaje, args=("origen", elegida),
                           use_container_width=True)
@@ -281,7 +371,7 @@ with tab1:
                         st.markdown(f"**Alternativa con menos paradas (Dijkstra):** {ahorro} "
                                     f"parada{'s' if ahorro > 1 else ''} menos, {extra} "
                                     f"transbordo{'s' if extra > 1 else ''} más.")
-                        mostrar_tramos(alterna[0], alterna[1], hora_txt)
+                        mostrar_tramos(alterna[0], alterna[1], hora_txt, "alterna")
 
     elif vista == "proximo":
         st.header("Próximo bus (R4)")
@@ -305,6 +395,7 @@ with tab1:
                     else:
                         st.success(f"Ruta {ruta_p} desde las {hora_p_txt}: el próximo bus pasa "
                                    f"por {est_r4} a las {hora_legible(bus_p)}.")
+                    st.caption(NOTA_HORARIOS)
 
     elif vista == "rango":
         st.header("Estaciones en un rango (R3)")
@@ -450,17 +541,33 @@ with tab2:
         # Como pidió el profesor, las llegadas van a un ritmo fijo; en hora pico son
         # varios pasajeros por minuto. La app arma la lista de minutos de llegada
         # (con N por minuto: N veces 0, N veces 1, ...) y se la pasa al motor.
+        # Valores iniciales en session_state (no en value=), porque el botón del caso
+        # real los cambia por su clave.
+        for clave_r10, inicial in (("r10_ritmo", 100), ("r10_pasajeros", 3000),
+                                   ("r10_frecuencia", 3), ("r10_cupos", 160)):
+            st.session_state.setdefault(clave_r10, inicial)
+        st.button("📍 Caso real: Calle 100, 17:00–18:00 (julio de 2021)", on_click=caso_calle_100)
+        st.caption("Ese miércoles 14 de julio de 2021 hubo 3.862 validaciones en Calle 100 entre "
+                   "las 17:00 y las 18:00 (unos 64 por minuto), y la ruta F14-1 pasa por ahí cada "
+                   "3 minutos en esa hora. Ojo: las validaciones cuentan todas las entradas a la "
+                   "estación, no solo los pasajeros de una ruta.")
         c1, c2 = st.columns(2)
         ritmo_r10 = c1.number_input("Llegan pasajeros por minuto:", min_value=1,
-                                    max_value=10_000, value=100, step=1)
+                                    max_value=10_000, step=1, key="r10_ritmo")
         pas_r10 = c2.number_input("Cantidad de pasajeros:", min_value=1, max_value=1_000_000,
-                                  value=3000, step=1)
-        c3, c4 = st.columns(2)
+                                  step=1, key="r10_pasajeros")
+        c3, c4, c5 = st.columns(3)
         freq_r10 = c3.number_input("Sale un bus cada (minutos, el primero en el minuto 0):",
-                                   min_value=1, max_value=1440, value=3, step=1)
-        # Un bus de TransMilenio lleva como mínimo unos 160 pasajeros.
-        cap_r10 = c4.number_input("Capacidad de cada bus (pasajeros que caben en un bus, mínimo 160):",
-                                  min_value=160, max_value=1000, value=160, step=1)
+                                   min_value=1, max_value=1440, step=1, key="r10_frecuencia")
+        # Capacidad del sitio oficial de TransMilenio: articulado ~160, biarticulado ~260.
+        tipo_r10 = c4.selectbox("Tipo de bus:", list(TIPOS_BUS), key="r10_tipo", filter_mode=None)
+        if TIPOS_BUS[tipo_r10] is None:
+            # El bus puede llegar con gente: aquí se dan los cupos que quedan libres.
+            cap_r10 = c5.number_input("Cupos disponibles por bus:", min_value=1,
+                                      max_value=1000, step=1, key="r10_cupos")
+        else:
+            cap_r10 = TIPOS_BUS[tipo_r10]
+            c5.metric("Pasajeros por bus", cap_r10)
         if st.button("Simular fila (R10)"):
             llegadas_r10 = [i // int(ritmo_r10) for i in range(int(pas_r10))]
             st.session_state["res_r10"] = {
