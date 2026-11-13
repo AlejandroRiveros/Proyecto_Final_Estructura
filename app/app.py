@@ -158,7 +158,7 @@ MENU_ESTACIONES = [
 MENU_OPERAR = [
     ("r8", "🚧 Cerrar o reabrir", "Cierra una estación o vuelve a abrirla (R8)."),
     ("r7", "✏️ Editar una ruta", "Quita o agrega paradas y mira el recorrido (R7)."),
-    ("r10", "⏱️ Simular fila", "Esperas de los pasajeros en hora pico (R10)."),
+    ("r10", "⏱️ Simular fila", "Un pasajero cada cierto tiempo y buses con cupo: cuánto espera cada uno (R10)."),
 ]
 
 
@@ -447,31 +447,39 @@ with tab2:
 
     elif vista == "r10":
         st.header("Simular fila de abordaje (R10)")
-        lleg_r10 = st.text_input("Minuto de llegada de cada pasajero (separados por coma):", value="0, 1, 1, 4")
-        freq_r10 = st.number_input("Frecuencia (minutos entre buses, el primero sale en el minuto 0):", min_value=1, value=2)
-        cap_r10 = st.number_input("Capacidad de cada bus:", min_value=1, value=1)
+        # Como pidió el profesor: llega un pasajero cada cierto intervalo. La app
+        # arma la lista de minutos de llegada (0, i, 2i, ...) y se la pasa al motor.
+        c1, c2 = st.columns(2)
+        int_r10 = c1.number_input("Llega un pasajero cada (minutos):", min_value=1, value=2)
+        pas_r10 = c2.number_input("Cantidad de pasajeros:", min_value=1, value=5, step=1)
+        c3, c4 = st.columns(2)
+        freq_r10 = c3.number_input("Sale un bus cada (minutos, el primero en el minuto 0):",
+                                   min_value=1, value=3)
+        cap_r10 = c4.number_input("Capacidad de cada bus:", min_value=1, value=1)
         if st.button("Simular fila (R10)"):
-            try:
-                llegadas_r10 = [int(x) for x in lleg_r10.replace(" ", "").split(",") if x != ""]
-            except ValueError:
-                llegadas_r10 = None
+            llegadas_r10 = [i * int(int_r10) for i in range(int(pas_r10))]
             st.session_state["res_r10"] = {
+                "intervalo": int(int_r10), "pasajeros": int(pas_r10),
                 "frecuencia": int(freq_r10), "capacidad": int(cap_r10),
-                "esperas": (None if llegadas_r10 is None else
-                            simular_fila(llegadas_r10, int(freq_r10), int(cap_r10)))}
+                "esperas": simular_fila(llegadas_r10, int(freq_r10), int(cap_r10))}
         res_r10 = st.session_state.get("res_r10")
         if res_r10:
             esperas = res_r10["esperas"]
-            if esperas is None:
-                st.warning("Escribe minutos enteros separados por coma, por ejemplo 0, 1, 1, 4.")
-            elif not esperas:
-                st.info("No hay pasajeros.")
-            else:
-                st.caption(f"Bus cada {res_r10['frecuencia']} min con capacidad {res_r10['capacidad']}.")
-                st.write("Espera de cada pasajero, en orden de llegada (minutos):",
-                         ", ".join(str(e) for e in esperas))
-                st.write(f"Espera promedio: {sum(esperas) / len(esperas):.2f} min · máxima: {max(esperas)} min")
-
+            p = res_r10["pasajeros"]
+            st.caption(f"{p} pasajeros, uno cada {res_r10['intervalo']} min · bus cada "
+                       f"{res_r10['frecuencia']} min con capacidad {res_r10['capacidad']}.")
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Espera promedio", f"{sum(esperas) / p:.2f} min")
+            m2.metric("Espera máxima", f"{max(esperas)} min")
+            m3.metric("Espera del último pasajero", f"{esperas[-1]} min")
+            # Si los buses se llevan menos gente de la que llega, la fila crece.
+            if res_r10["capacidad"] * res_r10["intervalo"] < res_r10["frecuencia"]:
+                st.warning("Llegan más pasajeros de los que caben en los buses: la fila crece "
+                           "y la espera aumenta con cada pasajero.")
+            primeros = esperas[:20]
+            st.write(("Espera de cada pasajero, en orden de llegada (minutos):" if p <= 20 else
+                      "Espera de los primeros 20 pasajeros (minutos):"),
+                     ", ".join(str(e) for e in primeros))
 
 
 with tab3:
