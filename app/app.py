@@ -450,12 +450,15 @@ with tab2:
         # Como pidió el profesor: llega un pasajero cada cierto intervalo. La app
         # arma la lista de minutos de llegada (0, i, 2i, ...) y se la pasa al motor.
         c1, c2 = st.columns(2)
-        int_r10 = c1.number_input("Llega un pasajero cada (minutos):", min_value=1, value=2)
-        pas_r10 = c2.number_input("Cantidad de pasajeros:", min_value=1, value=5, step=1)
+        int_r10 = c1.number_input("Llega un pasajero cada (minutos):", min_value=1, max_value=1440,
+                                  value=2, step=1)
+        pas_r10 = c2.number_input("Cantidad de pasajeros:", min_value=1, max_value=1_000_000,
+                                  value=5, step=1)
         c3, c4 = st.columns(2)
         freq_r10 = c3.number_input("Sale un bus cada (minutos, el primero en el minuto 0):",
-                                   min_value=1, value=3)
-        cap_r10 = c4.number_input("Capacidad de cada bus:", min_value=1, value=1)
+                                   min_value=1, max_value=1440, value=3, step=1)
+        cap_r10 = c4.number_input("Capacidad de cada bus (pasajeros que caben en un bus):",
+                                  min_value=1, max_value=1000, value=1, step=1)
         if st.button("Simular fila (R10)"):
             llegadas_r10 = [i * int(int_r10) for i in range(int(pas_r10))]
             st.session_state["res_r10"] = {
@@ -467,7 +470,8 @@ with tab2:
             esperas = res_r10["esperas"]
             p = res_r10["pasajeros"]
             st.caption(f"{p} pasajeros, uno cada {res_r10['intervalo']} min · bus cada "
-                       f"{res_r10['frecuencia']} min con capacidad {res_r10['capacidad']}.")
+                       f"{res_r10['frecuencia']} min con cupo para {res_r10['capacidad']} pasajero"
+                       f"{'s' if res_r10['capacidad'] > 1 else ''}.")
             m1, m2, m3 = st.columns(3)
             m1.metric("Espera promedio", f"{sum(esperas) / p:.2f} min")
             m2.metric("Espera máxima", f"{max(esperas)} min")
