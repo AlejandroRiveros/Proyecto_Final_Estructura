@@ -29,7 +29,8 @@ def ranking_bruto(red):
         for est in red.recorrido(nombre_ruta):
             buses[est] = buses.get(est, 0) + conteo.get((nombre_ruta, est), 0)
     abiertas = [n for n in red.rango("", "￿")]
-    return sorted(abiertas, key=lambda n: (-buses.get(n, 0), n))
+    orden = sorted(abiertas, key=lambda n: (-buses.get(n, 0), n))
+    return [(n, buses.get(n, 0)) for n in orden]
 
 
 class TestR6(unittest.TestCase):
@@ -54,12 +55,12 @@ class TestR6(unittest.TestCase):
         self.assertEqual(len(self.red.ranking(1000)), 147)
 
     def test_cerrar_y_reabrir(self):
-        primera = self.red.ranking(1)[0]
+        primera = self.red.ranking(1)[0][0]
         self.red.cerrar(primera)
-        self.assertNotEqual(self.red.ranking(1)[0], primera)
+        self.assertNotEqual(self.red.ranking(1)[0][0], primera)
         self.assertInvariante()
         self.red.reabrir(primera)
-        self.assertEqual(self.red.ranking(1)[0], primera)
+        self.assertEqual(self.red.ranking(1)[0][0], primera)
         self.assertInvariante()
 
     def test_editar_rutas_y_deshacer(self):

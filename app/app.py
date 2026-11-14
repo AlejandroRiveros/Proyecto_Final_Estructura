@@ -71,8 +71,8 @@ def campo_estacion(clave, etiqueta):
         return None
     exacto = nombre(texto)
     estado = red.estado(exacto)
-    if estado is not None:
-        st.caption(f"✓ {exacto}" + (" (cerrada)" if estado == "cerrada" else ""))
+    if estado != "NO EXISTE":
+        st.caption(f"✓ {exacto}" + (" (cerrada)" if estado == "CERRADA" else ""))
         return exacto
     sugerencias = red.autocompletar(exacto, K_SUGERENCIAS)
     if not sugerencias:
@@ -164,6 +164,11 @@ TIPOS_BUS = {"Articulado (160 pasajeros)": 160, "Biarticulado (260 pasajeros)": 
              "Personalizado": None}
 
 
+def reloj(segundos):
+    """Segundos desde el inicio de la simulación como min:seg (R10)."""
+    return f"{segundos // 60}:{segundos % 60:02d}"
+
+
 def caso_calle_100():
     # 3.862 validaciones entre las 17:00 y las 18:00 son unas 64 por minuto; la
     # F14-1 pasa cada 3 minutos (mediana en datos/horarios.csv).
@@ -224,10 +229,10 @@ with tab1:
         if elegida:
             st.subheader(f"📍 {elegida}")
             estado = red.estado(elegida)
-            if estado is None:
+            if estado == "NO EXISTE":
                 st.warning("Esa estación no existe (R1).")
             else:
-                if estado == "abierta":
+                if estado == "ABIERTA":
                     st.success("Estado (R1): abierta")
                 else:
                     st.error("Estado (R1): cerrada. Nadie sube, baja ni transborda aquí (R8).")
@@ -269,7 +274,7 @@ with tab1:
         if origen and destino:
             # Una sola búsqueda por opción: el motor entrega tramos y total de paradas.
             r5 = red.viaje_y_paradas(origen, destino)
-            cerradas = [e for e in (origen, destino) if red.estado(e) == "cerrada"]
+            cerradas = [e for e in (origen, destino) if red.estado(e) == "CERRADA"]
             if cerradas:
                 st.warning(f"{' y '.join(cerradas)} está cerrada: nadie sube ni baja ahí (R8).")
             elif origen == destino:
@@ -313,7 +318,7 @@ with tab1:
         st.header("Próximo bus (R4)")
         est_r4 = campo_estacion("r4_estacion", "Estación:")
         if est_r4 is not None:
-            if red.estado(est_r4) == "cerrada":
+            if red.estado(est_r4) == "CERRADA":
                 st.warning(f"{est_r4} está cerrada: ningún bus para ahí (R8).")
             else:
                 rutas_r4 = red.rutas_de(est_r4)
@@ -370,7 +375,9 @@ with tab1:
                 st.info("No hay estaciones abiertas para el ranking.")
             else:
                 st.caption(f"Top {res_r6['k']} de estaciones con más buses al día:")
-                st.markdown("\n".join(f"{n}. {est}" for n, est in enumerate(ranking_r6, 1)))
+                st.table({"Puesto": list(range(1, len(ranking_r6) + 1)),
+                          "Estación": [est for est, _ in ranking_r6],
+                          "Buses al día": [buses for _, buses in ranking_r6]})
 
 with tab2:
     import csv
@@ -497,7 +504,7 @@ with tab2:
         pas_r10 = c2.number_input("Cantidad de pasajeros:", min_value=1, max_value=1_000_000,
                                   step=1, key="r10_pasajeros")
         c3, c4, c5 = st.columns(3)
-        freq_r10 = c3.number_input("Sale un bus cada (minutos, el primero en el minuto 0):",
+        freq_r10 = c3.number_input("Sale un bus cada (minutos; el primero, al cumplirse ese tiempo):",
                                    min_value=1, max_value=1440, step=1, key="r10_frecuencia")
         # Capacidad del sitio oficial de TransMilenio: articulado ~160, biarticulado ~260.
         tipo_r10 = c4.selectbox("Tipo de bus:", list(TIPOS_BUS), key="r10_tipo", filter_mode=None)
@@ -509,11 +516,17 @@ with tab2:
             cap_r10 = TIPOS_BUS[tipo_r10]
             c5.metric("Pasajeros por bus", cap_r10)
         if st.button("Simular fila (R10)"):
-            llegadas_r10 = [i // int(ritmo_r10) for i in range(int(pas_r10))]
+            # El motor trabaja en segundos (enunciado): con N por minuto, la persona i
+            # llega en el segundo i*60//N, y los buses salen cada frecuencia*60 s.
+            ritmo, p = int(ritmo_r10), int(pas_r10)
+            llegadas_r10 = [i * 60 // ritmo for i in range(p)]
+            salidas_r10 = simular_fila(llegadas_r10, int(freq_r10) * 60, int(cap_r10))
             st.session_state["res_r10"] = {
-                "ritmo": int(ritmo_r10), "pasajeros": int(pas_r10),
+                "ritmo": ritmo, "pasajeros": p,
                 "frecuencia": int(freq_r10), "capacidad": int(cap_r10),
-                "esperas": simular_fila(llegadas_r10, int(freq_r10), int(cap_r10))}
+                # Espera de cada persona en minutos: salida de su bus menos su llegada.
+                "esperas": [(s - l) / 60 for s, l in zip(salidas_r10, llegadas_r10)],
+                "llegadas": llegadas_r10, "salidas": salidas_r10}
         res_r10 = st.session_state.get("res_r10")
         if res_r10:
             esperas = res_r10["esperas"]
@@ -522,22 +535,22 @@ with tab2:
                        f"{res_r10['frecuencia']} min con cupo para {res_r10['capacidad']} pasajero"
                        f"{'s' if res_r10['capacidad'] > 1 else ''}.")
             m1, m2, m3 = st.columns(3)
-            m1.metric("Espera promedio", f"{sum(esperas) / p:.2f} min")
-            m2.metric("Espera máxima", f"{max(esperas)} min")
-            m3.metric("Espera del último pasajero", f"{esperas[-1]} min")
+            m1.metric("Espera promedio", f"{sum(esperas) / p:.1f} min")
+            m2.metric("Espera máxima", f"{max(esperas):.1f} min")
+            m3.metric("Espera del último pasajero", f"{esperas[-1]:.1f} min")
             # Si los buses se llevan menos gente de la que llega, la fila crece.
             if res_r10["capacidad"] < res_r10["ritmo"] * res_r10["frecuencia"]:
                 st.warning("Llegan más pasajeros de los que caben en los buses: si las llegadas "
                            "mantienen este ritmo, la fila tiende a crecer.")
-            if p <= 20:
-                st.write("Espera de cada pasajero, en orden de llegada (minutos):",
-                         ", ".join(str(e) for e in esperas))
-            else:
-                # Muestra repartida a lo largo de la fila: así se ve cómo crece la espera.
-                puestos = [1 + (p - 1) * j // 9 for j in range(10)]
-                st.write("Espera según el puesto de llegada:")
-                st.table({"Pasajero n.º": puestos,
-                          "Espera (min)": [esperas[n - 1] for n in puestos]})
+            # Muestra repartida a lo largo de la fila (todos si son 20 o menos).
+            puestos = (list(range(1, p + 1)) if p <= 20
+                       else [1 + (p - 1) * j // 9 for j in range(10)])
+            st.write("Llegada, salida de su bus (lo que devuelve el motor) y espera, según el "
+                     "puesto de llegada:")
+            st.table({"Pasajero n.º": puestos,
+                      "Llega (min:seg)": [reloj(res_r10["llegadas"][n - 1]) for n in puestos],
+                      "Sale su bus (min:seg)": [reloj(res_r10["salidas"][n - 1]) for n in puestos],
+                      "Espera (min)": [f"{esperas[n - 1]:.1f}" for n in puestos]})
 
 
 with tab3:

@@ -17,7 +17,7 @@ class TestR8Estructura(unittest.TestCase):
 
     def test_cerrada_no_sale_en_consultas(self):
         self.red._cerrar_estacion(self._est("CALLE 100"))
-        self.assertEqual(self.red.estado("CALLE 100"), "cerrada")
+        self.assertEqual(self.red.estado("CALLE 100"), "CERRADA")
         self.assertEqual(self.red.autocompletar("CALLE 1", 2), ["CALLE 106", "CALLE 127"])
         self.assertEqual(self.red.rango("CALLE 100", "CALLE 106"), ["CALLE 106"])
 
@@ -46,10 +46,10 @@ class TestR8Publico(unittest.TestCase):
 
     def test_cerrar_y_reabrir(self):
         self.assertTrue(self.red.cerrar("CALLE 26"))
-        self.assertEqual(self.red.estado("CALLE 26"), "cerrada")
+        self.assertEqual(self.red.estado("CALLE 26"), "CERRADA")
         self.assertEqual(self.red.autocompletar("CALLE 26", 5), [])
         self.assertTrue(self.red.reabrir("CALLE 26"))
-        self.assertEqual(self.red.estado("CALLE 26"), "abierta")
+        self.assertEqual(self.red.estado("CALLE 26"), "ABIERTA")
         self.assertEqual(self.red.autocompletar("CALLE 26", 5), ["CALLE 26"])
 
     def test_casos_sin_cambio(self):

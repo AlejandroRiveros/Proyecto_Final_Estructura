@@ -5,8 +5,10 @@ from motor.estructuras.cola import Cola
 from motor.estructuras.monticulo import MonticuloMin
 
 # Respuestas de estado(). Si el enunciado pide otro formato, solo se cambian aquí.
-ABIERTA = "abierta"
-CERRADA = "cerrada"
+# Valores de R1, tal como los pide el enunciado.
+ABIERTA = "ABIERTA"
+CERRADA = "CERRADA"
+NO_EXISTE = "NO EXISTE"
 
 
 def _leer_csv(ruta_archivo, columnas):
@@ -133,10 +135,10 @@ class Red:
 
     # R1
     def estado(self, nombre):
-        """Devuelve "abierta", "cerrada" o None si la estación no existe. O(1) promedio."""
+        """Devuelve "ABIERTA", "CERRADA" o "NO EXISTE". O(1) promedio."""
         estacion = self._estaciones.obtener(nombre)
         if estacion is None:
-            return None
+            return NO_EXISTE
         if estacion.abierta:
             return ABIERTA
         return CERRADA
@@ -597,14 +599,16 @@ class Red:
 
     # R6
     def ranking(self, k):
-        """Las k estaciones abiertas con más buses al día, de mayor a menor. O(k).
+        """Lista de (nombre, buses_por_dia) de las k estaciones abiertas con más
+        buses, de mayor a menor. O(k).
 
         Empates: orden alfabético. Las cerradas no están en el arreglo.
         """
         salida = []
         i = 0
         while i < k and i < len(self._ranking):
-            salida.append(self._ranking[i].nombre)
+            estacion = self._ranking[i]
+            salida.append((estacion.nombre, estacion.buses))
             i += 1
         return salida
 

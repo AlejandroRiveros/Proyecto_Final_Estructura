@@ -22,12 +22,12 @@ class TestR9(unittest.TestCase):
         self.red.quitar_parada("1-1", "RECINTO FERIAL")
         self.assertTrue(self.red.deshacer())
         self.assertEqual(self.red.recorrido("1-1"), self.ida)
-        self.assertEqual(self.red.estado("CALLE 26"), "cerrada")
+        self.assertEqual(self.red.estado("CALLE 26"), "CERRADA")
         self.assertTrue(self.red.deshacer())
-        self.assertEqual(self.red.estado("CALLE 26"), "abierta")
+        self.assertEqual(self.red.estado("CALLE 26"), "ABIERTA")
         self.assertEqual(self.red.autocompletar("CALLE 26", 1), ["CALLE 26"])
         self.assertTrue(self.red.rehacer())
-        self.assertEqual(self.red.estado("CALLE 26"), "cerrada")
+        self.assertEqual(self.red.estado("CALLE 26"), "CERRADA")
         self.assertTrue(self.red.rehacer())
         self.assertEqual(self.red.recorrido("1-1"), self.ida[:1] + self.ida[2:])
         self.assertFalse(self.red.rehacer())
@@ -37,7 +37,7 @@ class TestR9(unittest.TestCase):
         self.red.deshacer()
         self.red.cerrar("CALLE 100")
         self.assertFalse(self.red.rehacer())
-        self.assertEqual(self.red.estado("CALLE 26"), "abierta")
+        self.assertEqual(self.red.estado("CALLE 26"), "ABIERTA")
 
     def test_quitar_primera_y_ultima(self):
         self.red.quitar_parada("1-1", self.ida[0])
@@ -52,11 +52,11 @@ class TestR9(unittest.TestCase):
         self.red.cerrar("CALLE 45")
         self.red.reabrir("CALLE 45")
         self.red.deshacer()
-        self.assertEqual(self.red.estado("CALLE 45"), "cerrada")
+        self.assertEqual(self.red.estado("CALLE 45"), "CERRADA")
         self.red.deshacer()
         self.red.deshacer()
         self.assertEqual(self.red.recorrido("1-1"), self.ida)
-        self.assertEqual(self.red.estado("CALLE 45"), "abierta")
+        self.assertEqual(self.red.estado("CALLE 45"), "ABIERTA")
 
     def test_cambio_sin_efecto_no_se_registra(self):
         self.red.cerrar("NO EXISTE")

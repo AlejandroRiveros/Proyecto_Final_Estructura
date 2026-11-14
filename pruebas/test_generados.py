@@ -50,7 +50,7 @@ class TestGenerados(unittest.TestCase):
             self.assertEqual(self.gen.recorrido(r), self.prof.recorrido(r), r)
             self.assertEqual(self.gen.recorrido(r, al_reves=True), self.prof.recorrido(r, al_reves=True), r)
         for e in self.estaciones:
-            self.assertEqual(self.gen.estado(e), "abierta")
+            self.assertEqual(self.gen.estado(e), "ABIERTA")
         for p in ["A", "CALLE", "PORTAL", "SU", "ZZ"]:
             self.assertEqual(self.gen.autocompletar(p, 10), self.prof.autocompletar(p, 10))
 
@@ -84,7 +84,8 @@ class TestGenerados(unittest.TestCase):
         for r in self.rutas:
             for e in self.gen.recorrido(r):
                 buses[e] = buses.get(e, 0) + conteo.get((r, e), 0)
-        esperado = sorted(self.estaciones, key=lambda n: (-buses.get(n, 0), n))
+        esperado = [(n, buses.get(n, 0)) for n in
+                    sorted(self.estaciones, key=lambda n: (-buses.get(n, 0), n))]
         self.assertEqual(self.gen.ranking(len(esperado)), esperado)
 
 

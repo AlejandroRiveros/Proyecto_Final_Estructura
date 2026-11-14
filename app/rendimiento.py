@@ -604,8 +604,9 @@ TAMANOS_P = [50000, 100000, 200000, 400000]
 
 
 def _llegadas(p, desordenar):
-    # 50 pasajeros por minuto: al duplicar P se duplica también la ventana de tiempo.
-    llegadas = [i // 50 for i in range(p)]
+    # 50 pasajeros por minuto (segundo de llegada, como pide el enunciado): al
+    # duplicar P se duplica también la ventana de tiempo.
+    llegadas = [i * 60 // 50 for i in range(p)]
     if desordenar:
         random.Random(p).shuffle(llegadas)
     return llegadas
@@ -619,11 +620,11 @@ def _exp_fila(desordenar, esperado, fijos, explicacion):
         for _ in range(3):
             with _SinRecolector():
                 inicio = time.perf_counter_ns()
-                esperas = simular_fila(llegadas, 3, 160)
+                salidas = simular_fila(llegadas, 180, 160)
                 fin = time.perf_counter_ns()
-            if len(esperas) != p:
-                raise RuntimeError("R11: simular_fila no devolvió una espera por pasajero")
-            del esperas
+            if len(salidas) != p:
+                raise RuntimeError("R11: simular_fila no devolvió una salida por pasajero")
+            del salidas
             tiempos.append((fin - inicio) / 1000)
         puntos.append((p, statistics.median(tiempos)))
     return dict(
@@ -636,7 +637,7 @@ def _exp_fila(desordenar, esperado, fijos, explicacion):
 def exp_fila_ordenada():
     return _exp_fila(
         False, "O(n)",
-        "Llegadas ya ordenadas, 50 por minuto; frecuencia 3 min, capacidad 160",
+        "Llegadas ya ordenadas, 50 por minuto; un bus cada 180 s, capacidad 160",
         "Revisar el orden es una pasada O(P). Luego cada pasajero entra y sale de la "
         "cola una vez, y cada salida con abordaje sube al menos a uno, así que hay a lo "
         "sumo P salidas; las vacías se saltan con una cuenta. Total O(P). La red no "
@@ -647,8 +648,8 @@ def exp_fila_ordenada():
 def exp_fila_desordenada():
     return _exp_fila(
         True, "O(n log n)",
-        "Las mismas llegadas, barajadas; frecuencia 3 min, capacidad 160",
-        "La revisión del orden falla, así que se ordena una copia con merge sort, "
+        "Las mismas llegadas, barajadas; un bus cada 180 s, capacidad 160",
+        "La revisión del orden falla, así que se ordenan los pares (segundo, posición) con merge sort, "
         "O(P log P), y después se simula en O(P). Domina el ordenamiento. De 50.000 a "
         "400.000, log P solo pasa de 15,6 a 18,6, así que cuesta distinguir esta curva "
         "de una lineal más empinada.",
@@ -770,7 +771,10 @@ def _muestras_base(real, azar):
 
 def _posicion(red, nombre):
     """Puesto de la estación en el ranking, por la API pública (fuera del cronómetro)."""
-    return red.ranking(10 ** 9).index(nombre)
+    for puesto, (estacion, _) in enumerate(red.ranking(10 ** 9)):
+        if estacion == nombre:
+            return puesto
+    raise ValueError(nombre)
 
 
 def _medir_replica(red, base, c, azar, todos_ordenados):

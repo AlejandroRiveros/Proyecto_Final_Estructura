@@ -32,20 +32,20 @@ class TestR1(unittest.TestCase):
         cls.red = Red(os.path.join(RAIZ, "datos"))
 
     def test_existe_y_abierta(self):
-        self.assertEqual(self.red.estado("CALLE 26"), "abierta")
-        self.assertEqual(self.red.estado("PORTAL NORTE"), "abierta")
+        self.assertEqual(self.red.estado("CALLE 26"), "ABIERTA")
+        self.assertEqual(self.red.estado("PORTAL NORTE"), "ABIERTA")
 
     def test_no_existe(self):
-        self.assertIsNone(self.red.estado("CALLE 999"))
-        self.assertIsNone(self.red.estado(""))
+        self.assertEqual(self.red.estado("CALLE 999"), "NO EXISTE")
+        self.assertEqual(self.red.estado(""), "NO EXISTE")
 
     def test_nombre_exacto(self):
-        self.assertIsNone(self.red.estado("calle 26"))
-        self.assertIsNone(self.red.estado("CALLE 2"))
+        self.assertEqual(self.red.estado("calle 26"), "NO EXISTE")
+        self.assertEqual(self.red.estado("CALLE 2"), "NO EXISTE")
 
     def test_cerrada(self):
         self.red._estaciones.obtener("CALLE 26").abierta = False
-        self.assertEqual(self.red.estado("CALLE 26"), "cerrada")
+        self.assertEqual(self.red.estado("CALLE 26"), "CERRADA")
         self.red._estaciones.obtener("CALLE 26").abierta = True
 
 

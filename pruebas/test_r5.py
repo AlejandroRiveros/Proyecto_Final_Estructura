@@ -28,7 +28,7 @@ def red_de(rutas):
 
 def bruto(red, origen, destino):
     """Todas las combinaciones (opción A), solo para comparar en las pruebas."""
-    if origen == destino or red.estado(origen) != "abierta" or red.estado(destino) != "abierta":
+    if origen == destino or red.estado(origen) != "ABIERTA" or red.estado(destino) != "ABIERTA":
         return None
     candidatos = []
     rutas = {n: red.recorrido(n) for n in red._rutas.claves()}
@@ -40,7 +40,7 @@ def bruto(red, origen, destino):
             if p1[j] == destino:
                 candidatos.append((j - i, 0, r1, "", ""))
             t = p1[j]
-            if t == destino or red.estado(t) != "abierta":
+            if t == destino or red.estado(t) != "ABIERTA":
                 continue
             for r2, p2 in rutas.items():
                 if r2 == r1 or t not in p2 or destino not in p2:
@@ -186,7 +186,7 @@ def bruto_transbordos(red, origen, destino, paradas_primero=False):
     if paradas_primero:
         return _bruto_paradas(red, origen, destino)
     import heapq
-    if origen == destino or red.estado(origen) != "abierta" or red.estado(destino) != "abierta":
+    if origen == destino or red.estado(origen) != "ABIERTA" or red.estado(destino) != "ABIERTA":
         return None
     rutas = [red.recorrido(n) for n in red._rutas.claves()]
     mejor = {origen: (0, 0)}
@@ -203,7 +203,7 @@ def bruto_transbordos(red, origen, destino, paradas_primero=False):
             i = paradas.index(x)
             for j in range(i + 1, len(paradas)):
                 y = paradas[j]
-                if red.estado(y) != "abierta":
+                if red.estado(y) != "ABIERTA":
                     continue
                 c = (t + 1, p + j - i)
                 if y not in mejor or c < mejor[y]:
@@ -214,7 +214,7 @@ def bruto_transbordos(red, origen, destino, paradas_primero=False):
 
 def _bruto_paradas(red, origen, destino):
     import heapq
-    if origen == destino or red.estado(origen) != "abierta" or red.estado(destino) != "abierta":
+    if origen == destino or red.estado(origen) != "ABIERTA" or red.estado(destino) != "ABIERTA":
         return None
     rutas = [red.recorrido(n) for n in red._rutas.claves()]
     mejor = {origen: (0, 0)}
@@ -231,7 +231,7 @@ def _bruto_paradas(red, origen, destino):
             i = paradas.index(x)
             for j in range(i + 1, len(paradas)):
                 y = paradas[j]
-                if red.estado(y) != "abierta":
+                if red.estado(y) != "ABIERTA":
                     continue
                 c = (p + j - i, t + 1)
                 if y not in mejor or c < mejor[y]:
@@ -249,7 +249,7 @@ class TestViajeConTransbordos(unittest.TestCase):
         for (r1, _, baja), (r2, sube, _) in zip(tramos, tramos[1:]):
             self.assertEqual(baja, sube)
             self.assertNotEqual(r1, r2)
-            self.assertEqual(red.estado(sube), "abierta")
+            self.assertEqual(red.estado(sube), "ABIERTA")
         for ruta, sube, baja in tramos:
             p = red.recorrido(ruta)
             self.assertLess(p.index(sube), p.index(baja))
